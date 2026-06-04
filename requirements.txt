@@ -1,5 +1,5 @@
 # LLM
-anthropic>=0.40.0
+google-genai>=1.0.0
 
 # MCP
 mcp[cli]>=1.0.0
