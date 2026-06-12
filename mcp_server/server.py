@@ -18,6 +18,7 @@ from mcp_server.tools.operations import (
     restart_service as _restart_service,
     scale_service as _scale_service,
 )
+from mcp_server.tools.runbook import search_runbook as _search_runbook
 
 mcp = FastMCP(
     "ai-ops-server",
@@ -77,6 +78,19 @@ def get_alerts() -> dict:
     return _get_alerts()
 
 
+@mcp.tool()
+def search_runbook(query: str, top_k: int = 3) -> dict:
+    """
+    Search operational runbooks by semantic similarity.
+    Use this to find relevant procedures before recommending actions.
+
+    Args:
+        query: Natural language query (e.g. 'CPU高騰の対処法', 'high latency troubleshooting').
+        top_k: Number of results to return (1–5).
+    """
+    return _search_runbook(query, top_k)
+
+
 # ---------------------------------------------------------------------------
 # Mutating tools — engine.py intercepts these for user confirmation
 # ---------------------------------------------------------------------------
@@ -109,4 +123,5 @@ def scale_service(service_name: str, replicas: int, reason: str) -> dict:
 
 
 if __name__ == "__main__":
-    mcp.run(transport="streamable-http", host="0.0.0.0", port=8001)
+    import uvicorn
+    uvicorn.run(mcp.streamable_http_app(), host="0.0.0.0", port=8001)

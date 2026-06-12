@@ -26,7 +26,7 @@ load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8001")
-MODEL = "gemini-2.0-flash"
+MODEL = "gemini-2.5-flash"
 
 _client = genai.Client(api_key=GEMINI_API_KEY)
 

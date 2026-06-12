@@ -31,7 +31,7 @@ if "error" not in st.session_state:
 # ---------------------------------------------------------------------------
 
 st.title("🤖 AI Ops Agent")
-st.caption("チャットで運用作業を自動化 | Powered by Gemini 2.0 Flash + MCP")
+st.caption("チャットで運用作業を自動化 | Powered by Gemini 2.5 Flash + MCP")
 st.divider()
 
 # ---------------------------------------------------------------------------
