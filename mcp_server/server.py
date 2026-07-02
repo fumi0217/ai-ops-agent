@@ -6,6 +6,7 @@ Run with:
 """
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 from mcp_server.tools.logs import get_logs as _get_logs
 from mcp_server.tools.metrics import (
@@ -27,6 +28,13 @@ mcp = FastMCP(
         "Use these tools to monitor and operate services. "
         "For mutating operations (restart, scale), always summarize what you are about to do "
         "and wait for explicit user confirmation before executing."
+    ),
+    # Allow requests through the docker-compose service name (`mcp_server`) in
+    # addition to the SDK's default localhost-only allowlist, since the chat
+    # container reaches this server via `http://mcp_server:8001`, not localhost.
+    transport_security=TransportSecuritySettings(
+        allowed_hosts=["127.0.0.1:*", "localhost:*", "[::1]:*", "mcp_server:*"],
+        allowed_origins=["http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*", "http://mcp_server:*"],
     ),
 )
 
