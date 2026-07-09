@@ -1,24 +1,6 @@
-# LLM
-google-genai>=1.0.0
-
-# MCP
-mcp[cli]>=1.0.0
-
-# Web framework (mock services + MCP server HTTP transport)
-fastapi>=0.115.0
-uvicorn[standard]>=0.32.0
-httpx>=0.28.0
-
-# Chat UI
-streamlit>=1.41.0
-
-# RAG
-llama-index-core>=0.12.0
-llama-index-vector-stores-chroma>=0.4.0
-llama-index-embeddings-huggingface>=0.4.0
-chromadb>=0.6.0
-sentence-transformers>=3.0.0
-
-# Utilities
-python-dotenv>=1.0.0
-pydantic>=2.0.0
+# Local dev convenience: installs everything needed to run all three services
+# outside Docker. Each Docker image installs only its own split file —
+# see requirements-light.txt (mock_services + chat) and requirements-rag.txt
+# (mcp_server).
+-r requirements-light.txt
+-r requirements-rag.txt
