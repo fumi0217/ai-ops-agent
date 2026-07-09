@@ -87,6 +87,15 @@ Three services, wired together by `docker-compose.yml`:
   Re-run that script whenever runbook content changes — the chat/MCP process only reads
   the persisted index, it doesn't rebuild it.
 
+## Development workflow
+
+- Always branch off `main` for changes (never commit directly to `main`).
+- After making changes, verify them (run/test as applicable) before moving on.
+- Present the change and verification result to the user for confirmation.
+- Only after the user confirms, present the diff/commit message and get explicit
+  go-ahead before `git commit` / `git push`.
+- Open a PR back to `main` using the `create-pull-request` skill.
+
 ### Adding a new tool
 
 A new ops action needs three pieces kept in sync: the mock endpoint in
