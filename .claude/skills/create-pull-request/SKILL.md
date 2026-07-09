@@ -68,5 +68,9 @@ implied ("this is ready for review").
 
 - Never run `gh pr create` (or any push) without explicit go-ahead in that turn — a
   prior approval for a different PR doesn't carry over.
-- Base branch for this repo is `main`; double-check this hasn't changed if it's been a
-  while since last use.
+- Base branch for this repo is **always `main`** — use it for both the diff/log
+  comparison in step 2 and the `--base` flag in step 8. Don't infer the base branch
+  from `origin/HEAD`, a "Main branch" hint in session/gitStatus context, or which
+  branch the current branch happens to be forked from — those can point at a
+  long-lived feature branch (e.g. `feat/phase1-foundation`) instead of `main`. Only
+  deviate from `main` if the user explicitly names a different base branch.
