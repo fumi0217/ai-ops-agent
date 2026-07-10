@@ -72,15 +72,19 @@ def get_alerts():
 
 @app.post("/services/{name}/restart")
 def restart_service(name: str):
-    result = state.restart_service(name)
-    if not result["ok"]:
-        raise HTTPException(status_code=404, detail=result["error"])
-    return result
+    svc = state.get_service(name)
+    if not svc:
+        raise HTTPException(status_code=404, detail=f"Service '{name}' not found")
+    logs = state.restart_service(name)
+    return {"ok": True, "message": f"{name} restarted successfully", "logs": logs}
 
 
 @app.post("/services/{name}/scale")
 def scale_service(name: str, body: ScaleRequest):
-    result = state.scale_service(name, body.replicas)
-    if not result["ok"]:
-        raise HTTPException(status_code=400, detail=result["error"])
-    return result
+    svc = state.get_service(name)
+    if not svc:
+        raise HTTPException(status_code=404, detail=f"Service '{name}' not found")
+    if not (1 <= body.replicas <= 10):
+        raise HTTPException(status_code=400, detail="Replicas must be between 1 and 10")
+    prev = state.scale_service(name, body.replicas)
+    return {"ok": True, "message": f"{name} scaled from {prev} to {body.replicas} replicas"}
