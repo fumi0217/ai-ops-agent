@@ -68,6 +68,14 @@ _BASE_STATE: dict[str, Any] = {
     },
 }
 
+METRIC_TYPE_MAP: dict[str, str] = {
+    "cpu":        "cpu_percent",
+    "memory":     "memory_percent",
+    "latency":    "latency_ms",
+    "error_rate": "error_rate_percent",
+    "rps":        "requests_per_sec",
+}
+
 _HEALTHY_METRICS: dict[str, Any] = {
     "api-gateway":          {"cpu_percent": 28.0, "memory_percent": 40.0, "latency_ms": 45,  "error_rate_percent": 0.1, "requests_per_sec": 850},
     "payment-service":      {"cpu_percent": 30.0, "memory_percent": 55.0, "latency_ms": 80,  "error_rate_percent": 0.2, "requests_per_sec": 120},

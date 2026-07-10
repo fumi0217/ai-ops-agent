@@ -145,10 +145,11 @@ def is_display_message(msg: dict) -> tuple[bool, str, str]:
 # MCP tool executor
 # ---------------------------------------------------------------------------
 
-async def _call_mcp_tool(session: ClientSession, name: str, args: dict) -> str:
+async def _call_mcp_tool(session: ClientSession, name: str, args: dict) -> tuple[str, bool]:
     result = await session.call_tool(name, arguments=args)
     parts = [b.text for b in result.content if hasattr(b, "text")]
-    return "\n".join(parts) if parts else "(no result)"
+    text = "\n".join(parts) if parts else "(no result)"
+    return text, bool(result.isError)
 
 
 # ---------------------------------------------------------------------------
@@ -214,11 +215,11 @@ async def _agentic_loop(
         # Execute all read-only tool calls
         fn_response_parts: list[dict] = []
         for fc in func_calls:
-            result = await _call_mcp_tool(session, fc.name, dict(fc.args))
+            text, is_error = await _call_mcp_tool(session, fc.name, dict(fc.args))
             fn_response_parts.append({
                 "function_response": {
                     "name": fc.name,
-                    "response": {"result": result},
+                    "response": {"error": text} if is_error else {"result": text},
                 }
             })
         messages.append({"role": "user", "parts": fn_response_parts})
@@ -256,13 +257,13 @@ async def resume_after_confirmation_async(
             genai_tools = [_mcp_tool_to_genai(t) for t in tools_result.tools]
 
             if confirmed:
-                result = await _call_mcp_tool(
+                text, is_error = await _call_mcp_tool(
                     session, pending_action["tool_name"], pending_action["tool_input"]
                 )
                 fn_response = {
                     "function_response": {
                         "name": pending_action["tool_name"],
-                        "response": {"result": result},
+                        "response": {"error": text} if is_error else {"result": text},
                     }
                 }
             else:
