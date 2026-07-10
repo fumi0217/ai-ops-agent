@@ -2,7 +2,6 @@
 mcp[cli]>=1.0.0
 
 # Web framework (MCP server transport + proxy calls to mock_services)
-fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
 httpx>=0.28.0
 
