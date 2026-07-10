@@ -17,7 +17,7 @@ Requires a `.env` (copy from `.env.example`) with `GEMINI_API_KEY` set
 (https://aistudio.google.com/app/apikey).
 
 ```bash
-pip install -r requirements.txt   # installs both requirements-light.txt and requirements-rag.txt
+pip install -r requirements-light.txt -r requirements-rag.txt
 
 # Build the RAG index once (required before runbook search works)
 python -m scripts.index_runbooks
@@ -41,9 +41,9 @@ There is no test suite or linter configured in this repo.
 Three services, wired together by `docker-compose.yml`, built from two Docker images:
 `Dockerfile.light` (`mock_services` + `chat` — no RAG deps) and `Dockerfile.rag`
 (`mcp_server` — pulls in llama-index/chromadb/sentence-transformers, so it's the heavy
-one). `requirements.txt` at the repo root just references
-`requirements-light.txt` + `requirements-rag.txt` for local dev convenience; each
-Dockerfile installs only the split file it needs.
+one). Each Dockerfile installs only its own split requirements file
+(`requirements-light.txt` or `requirements-rag.txt`); for local dev running all three
+services, install both.
 
 - **`mock_services/`** (port 8002, FastAPI) — simulates a real ops backend. All state
   (`mock_services/state.py`) is in-memory and resets on restart: 5 hardcoded services

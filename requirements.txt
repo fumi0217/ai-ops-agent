@@ -1,6 +1,0 @@
-# Local dev convenience: installs everything needed to run all three services
-# outside Docker. Each Docker image installs only its own split file —
-# see requirements-light.txt (mock_services + chat) and requirements-rag.txt
-# (mcp_server).
--r requirements-light.txt
--r requirements-rag.txt
