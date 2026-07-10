@@ -17,18 +17,19 @@ Requires a `.env` (copy from `.env.example`) with `GEMINI_API_KEY` set
 (https://aistudio.google.com/app/apikey).
 
 ```bash
-pip install -r requirements-light.txt -r requirements-rag.txt
-
-# Build the RAG index once (required before runbook search works)
-python -m scripts.index_runbooks
-
-# All three services via Docker
+# All three services via Docker — mcp_server rebuilds the RAG index on every
+# startup (see docker-compose.yml), so no manual indexing step is needed here.
 docker-compose up --build
 ```
 
 Or run each service locally (in separate terminals, in this order):
 
 ```bash
+pip install -r requirements-light.txt -r requirements-rag.txt
+
+# Build the RAG index once (required before runbook search works)
+python -m scripts.index_runbooks
+
 uvicorn mock_services.app:app --host 0.0.0.0 --port 8002
 python -m mcp_server.server                                   # port 8001
 python -m streamlit run chat/app.py --server.port 8000        # UI
@@ -91,8 +92,10 @@ services, install both.
     `st.rerun()`.
 - **`runbooks/`** — markdown runbooks (high CPU, high memory, latency spike, service
   restart) that get chunked/embedded by `scripts/index_runbooks.py` into `chroma_db/`.
-  Re-run that script whenever runbook content changes — the chat/MCP process only reads
-  the persisted index, it doesn't rebuild it.
+  `docker-compose.yml`'s `mcp_server` command runs this script on every container
+  startup (it drops and recreates the collection), so runbook content changes are
+  picked up on the next `docker-compose up`/restart. Running the service locally
+  (outside Docker) still requires re-running the script manually — see "Running it".
 
 ## Development workflow
 
