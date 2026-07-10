@@ -13,7 +13,7 @@ from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.vector_stores.chroma import ChromaVectorStore
 import chromadb
 
-CHROMA_PATH = Path(__file__).parent.parent / "chroma_db"
+CHROMA_PATH = Path(__file__).parent.parent.parent / "chroma_db"
 COLLECTION_NAME = "runbooks"
 EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 TOP_K = 3

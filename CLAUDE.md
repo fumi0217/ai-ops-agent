@@ -60,7 +60,7 @@ Dockerfile installs only the split file it needs.
   flagged in the tool docstrings as requiring confirmation — enforcement of that
   confirmation actually lives in `chat/engine.py`, not the server. `search_runbook`
   (`mcp_server/tools/runbook.py`) is the one tool that does **not** go over HTTP — it
-  imports `mcp_server/rag.py` directly in-process. `mcp_server/rag.py` wraps a
+  imports `mcp_server/tools/rag.py` directly in-process. `mcp_server/tools/rag.py` wraps a
   LlamaIndex `VectorStoreIndex` over a persistent ChromaDB store at `chroma_db/`
   (collection `runbooks`, embeddings via `sentence-transformers/all-MiniLM-L6-v2`).
   It's LLM-free — pure retrieval, returning raw chunks for the agent to reason over.
