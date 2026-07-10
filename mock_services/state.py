@@ -168,23 +168,19 @@ def get_alerts() -> list[dict]:
     return alerts
 
 
-def restart_service(name: str) -> dict:
-    if name not in _state:
-        return {"ok": False, "error": f"Service '{name}' not found"}
+def restart_service(name: str) -> list[str]:
     svc = _state[name]
     svc["status"] = "running"
     svc["metrics"] = {**_HEALTHY_METRICS[name], "requests_per_sec": svc["metrics"]["requests_per_sec"]}
-    return {"ok": True, "message": f"{name} restarted successfully", "logs": _RESTART_LOG}
+    return _RESTART_LOG
 
 
-def scale_service(name: str, replicas: int) -> dict:
-    if name not in _state:
-        return {"ok": False, "error": f"Service '{name}' not found"}
-    if not (1 <= replicas <= 10):
-        return {"ok": False, "error": "Replicas must be between 1 and 10"}
+def scale_service(name: str, replicas: int) -> int:
     svc = _state[name]
-    prev = svc["replicas"]["current"]
+    prev_current = svc["replicas"]["current"]
+    prev_desired = svc["replicas"]["desired"]
+    was_understaffed = prev_current < prev_desired
     svc["replicas"] = {"current": replicas, "desired": replicas}
-    if svc["status"] == "degraded" and replicas >= svc["replicas"]["desired"]:
+    if svc["status"] == "degraded" and was_understaffed:
         svc["status"] = "running"
-    return {"ok": True, "message": f"{name} scaled from {prev} to {replicas} replicas"}
+    return prev_current
