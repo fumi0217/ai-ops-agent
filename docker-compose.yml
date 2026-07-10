@@ -17,7 +17,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.rag
-    command: python -m mcp_server.server
+    command: sh -c "python -m scripts.index_runbooks && python -m mcp_server.server"
     ports:
       - "8001:8001"
     env_file: .env
@@ -31,6 +31,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+      start_period: 30s
 
   chat:
     build:
