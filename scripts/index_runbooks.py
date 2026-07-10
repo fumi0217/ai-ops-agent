@@ -35,7 +35,8 @@ def build_index() -> None:
     print(f"Setting up ChromaDB at {CHROMA_PATH} ...")
     client = chromadb.PersistentClient(path=str(CHROMA_PATH))
     # Drop and recreate to ensure a clean index
-    client.delete_collection(COLLECTION_NAME) if COLLECTION_NAME in [c.name for c in client.list_collections()] else None
+    if COLLECTION_NAME in [c.name for c in client.list_collections()]:
+        client.delete_collection(COLLECTION_NAME)
     collection = client.get_or_create_collection(COLLECTION_NAME)
 
     vector_store = ChromaVectorStore(chroma_collection=collection)
