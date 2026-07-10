@@ -26,11 +26,20 @@ def get_service(name: str):
 
 
 @app.get("/services/{name}/metrics")
-def get_metrics(name: str):
+def get_metrics(name: str, metric_type: str = "all"):
     svc = state.get_service(name)
     if not svc:
         raise HTTPException(status_code=404, detail=f"Service '{name}' not found")
-    return {"service": name, "metrics": svc["metrics"], "status": svc["status"]}
+    if metric_type == "all":
+        return {"service": name, "metrics": svc["metrics"], "status": svc["status"]}
+    key = state.METRIC_TYPE_MAP.get(metric_type)
+    if not key:
+        valid = ", ".join(["all", *state.METRIC_TYPE_MAP])
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown metric_type '{metric_type}'. Valid options: {valid}",
+        )
+    return {"service": name, metric_type: svc["metrics"][key]}
 
 
 @app.get("/services/{name}/health")
