@@ -17,7 +17,7 @@ Requires a `.env` (copy from `.env.example`) with `GEMINI_API_KEY` set
 (https://aistudio.google.com/app/apikey).
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-light.txt -r requirements-rag.txt
 
 # Build the RAG index once (required before runbook search works)
 python -m scripts.index_runbooks
@@ -38,7 +38,12 @@ There is no test suite or linter configured in this repo.
 
 ## Architecture
 
-Three services, wired together by `docker-compose.yml`:
+Three services, wired together by `docker-compose.yml`, built from two Docker images:
+`Dockerfile.light` (`mock_services` + `chat` — no RAG deps) and `Dockerfile.rag`
+(`mcp_server` — pulls in llama-index/chromadb/sentence-transformers, so it's the heavy
+one). Each Dockerfile installs only its own split requirements file
+(`requirements-light.txt` or `requirements-rag.txt`); for local dev running all three
+services, install both.
 
 - **`mock_services/`** (port 8002, FastAPI) — simulates a real ops backend. All state
   (`mock_services/state.py`) is in-memory and resets on restart: 5 hardcoded services
@@ -55,7 +60,14 @@ Three services, wired together by `docker-compose.yml`:
   flagged in the tool docstrings as requiring confirmation — enforcement of that
   confirmation actually lives in `chat/engine.py`, not the server. `search_runbook`
   (`mcp_server/tools/runbook.py`) is the one tool that does **not** go over HTTP — it
-  imports `chat/rag.py` directly in-process.
+  imports `mcp_server/tools/rag.py` directly in-process. `mcp_server/tools/rag.py` wraps a
+  LlamaIndex `VectorStoreIndex` over a persistent ChromaDB store at `chroma_db/`
+  (collection `runbooks`, embeddings via `sentence-transformers/all-MiniLM-L6-v2`).
+  It's LLM-free — pure retrieval, returning raw chunks for the agent to reason over.
+  The module-level `_index` is a lazy singleton. Because this pulls in
+  llama-index/chromadb/sentence-transformers (torch), `mcp_server` is built from a
+  separate, heavier image (`Dockerfile.rag`) than `mock_services`/`chat`
+  (`Dockerfile.light`) — see `docker-compose.yml`.
   `TransportSecuritySettings` in `server.py` allowlists the `mcp_server` hostname (in
   addition to localhost) since the chat container reaches it as `http://mcp_server:8001`
   under Docker.
@@ -77,11 +89,6 @@ Three services, wired together by `docker-compose.yml`:
     confirmation card (if `pending_action` is set) with per-tool Japanese labels/warnings
     (`_TOOL_LABELS`, `_TOOL_WARNINGS`), then the chat input. Every user action ends in
     `st.rerun()`.
-  - `chat/rag.py` wraps a LlamaIndex `VectorStoreIndex` over a persistent ChromaDB store
-    at `chroma_db/` (collection `runbooks`, embeddings via
-    `sentence-transformers/all-MiniLM-L6-v2`). It's LLM-free — pure retrieval, returning
-    raw chunks for the agent to reason over. The module-level `_index` is a lazy
-    singleton.
 - **`runbooks/`** — markdown runbooks (high CPU, high memory, latency spike, service
   restart) that get chunked/embedded by `scripts/index_runbooks.py` into `chroma_db/`.
   Re-run that script whenever runbook content changes — the chat/MCP process only reads

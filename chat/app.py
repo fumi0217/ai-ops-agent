@@ -153,9 +153,6 @@ if not st.session_state.pending_action:
 
                 except Exception as e:
                     status.update(label="エラー", state="error")
-                    st.error(f"エラーが発生しました: {e}")
-                    # Remove the failed user message from history
-                    if st.session_state.messages and st.session_state.messages[-1]["role"] == "user":
-                        st.session_state.messages.pop()
+                    st.session_state.error = f"エラーが発生しました: {e}"
 
         st.rerun()

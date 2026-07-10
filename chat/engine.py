@@ -28,8 +28,6 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8001")
 MODEL = "gemini-2.5-flash"
 
-_client = genai.Client(api_key=GEMINI_API_KEY)
-
 # Tools that require human confirmation before execution
 MUTATING_TOOLS = {"restart_service", "scale_service"}
 
@@ -158,6 +156,7 @@ async def _call_mcp_tool(session: ClientSession, name: str, args: dict) -> str:
 # ---------------------------------------------------------------------------
 
 async def _agentic_loop(
+    client: genai.Client,
     session: ClientSession,
     genai_tools: list[types.FunctionDeclaration],
     messages: list[dict],
@@ -176,7 +175,7 @@ async def _agentic_loop(
     )
 
     while True:
-        response = await _client.aio.models.generate_content(
+        response = await client.aio.models.generate_content(
             model=MODEL,
             contents=messages,  # type: ignore[arg-type]
             config=config,
@@ -234,12 +233,13 @@ async def run_conversation_async(
     on_pending_action: Callable,
 ) -> tuple[list[dict], str]:
     """Run one conversation turn. Returns (updated_messages, last_assistant_text)."""
+    client = genai.Client(api_key=GEMINI_API_KEY)
     async with streamablehttp_client(f"{MCP_SERVER_URL}/mcp") as (read, write, _):
         async with ClientSession(read, write) as session:
             await session.initialize()
             tools_result = await session.list_tools()
             genai_tools = [_mcp_tool_to_genai(t) for t in tools_result.tools]
-            return await _agentic_loop(session, genai_tools, messages, on_pending_action)
+            return await _agentic_loop(client, session, genai_tools, messages, on_pending_action)
 
 
 async def resume_after_confirmation_async(
@@ -248,6 +248,7 @@ async def resume_after_confirmation_async(
     confirmed: bool,
 ) -> tuple[list[dict], str]:
     """Resume after operator confirms or denies a mutating operation."""
+    client = genai.Client(api_key=GEMINI_API_KEY)
     async with streamablehttp_client(f"{MCP_SERVER_URL}/mcp") as (read, write, _):
         async with ClientSession(read, write) as session:
             await session.initialize()
@@ -273,7 +274,7 @@ async def resume_after_confirmation_async(
                 }
 
             messages.append({"role": "user", "parts": [fn_response]})
-            return await _agentic_loop(session, genai_tools, messages, lambda _: None)
+            return await _agentic_loop(client, session, genai_tools, messages, lambda _: None)
 
 
 # ---------------------------------------------------------------------------

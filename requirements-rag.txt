@@ -1,16 +1,9 @@
-# LLM
-google-genai>=1.0.0
-
 # MCP
 mcp[cli]>=1.0.0
 
-# Web framework (mock services + MCP server HTTP transport)
-fastapi>=0.115.0
+# Web framework (MCP server transport + proxy calls to mock_services)
 uvicorn[standard]>=0.32.0
 httpx>=0.28.0
-
-# Chat UI
-streamlit>=1.41.0
 
 # RAG
 llama-index-core>=0.12.0

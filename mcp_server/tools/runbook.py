@@ -1,6 +1,6 @@
 """MCP tool for runbook search via RAG."""
 
-from chat.rag import search_runbook as _search
+from mcp_server.tools.rag import search_runbook as _search
 
 
 def search_runbook(query: str, top_k: int = 3) -> dict:

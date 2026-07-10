@@ -2,7 +2,7 @@ services:
   mock_services:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.light
     command: uvicorn mock_services.app:app --host 0.0.0.0 --port 8002
     ports:
       - "8002:8002"
@@ -16,7 +16,7 @@ services:
   mcp_server:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.rag
     command: python -m mcp_server.server
     ports:
       - "8001:8001"
@@ -26,11 +26,16 @@ services:
     depends_on:
       mock_services:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('localhost', 8001), timeout=3).close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   chat:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.light
     command: python -m streamlit run chat/app.py --server.port 8000 --server.address 0.0.0.0
     ports:
       - "8000:8000"
@@ -38,4 +43,5 @@ services:
     environment:
       - MCP_SERVER_URL=http://mcp_server:8001
     depends_on:
-      - mcp_server
+      mcp_server:
+        condition: service_healthy
