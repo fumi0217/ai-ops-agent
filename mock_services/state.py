@@ -171,7 +171,7 @@ def get_alerts() -> list[dict]:
 def restart_service(name: str) -> list[str]:
     svc = _state[name]
     svc["status"] = "running"
-    svc["metrics"] = {**_HEALTHY_METRICS[name], "requests_per_sec": svc["metrics"]["requests_per_sec"]}
+    svc["metrics"] = dict(_HEALTHY_METRICS[name])
     return _RESTART_LOG
 
 
