@@ -11,6 +11,11 @@ executing.
 
 This is a **public portfolio repo** — never commit credentials, API keys, or `.env`.
 
+**Never read or edit `.env`** (only `.env.example`). The user manages `.env` themselves.
+Likewise, never print/output the actual value of `GEMINI_API_KEY` (e.g. from a
+container's environment) — only check whether it's present/absent (e.g.
+`env | grep -q '^GEMINI_API_KEY='`).
+
 ## Running it
 
 Requires a `.env` (copy from `.env.example`) with `GEMINI_API_KEY` set
