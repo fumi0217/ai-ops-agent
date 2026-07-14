@@ -17,14 +17,6 @@ def list_services():
     return {"services": state.get_all_services()}
 
 
-@app.get("/services/{name}")
-def get_service(name: str):
-    svc = state.get_service(name)
-    if not svc:
-        raise HTTPException(status_code=404, detail=f"Service '{name}' not found")
-    return svc
-
-
 @app.get("/services/{name}/metrics")
 def get_metrics(name: str, metric_type: str = "all"):
     svc = state.get_service(name)
