@@ -106,16 +106,6 @@ def _mcp_tool_to_genai(tool) -> types.FunctionDeclaration:
 # Message history helpers
 # ---------------------------------------------------------------------------
 
-def _extract_display_text(messages: list[dict]) -> str:
-    """Extract the last model text reply for display."""
-    for msg in reversed(messages):
-        if msg["role"] == "model":
-            texts = [p["text"] for p in msg["parts"] if "text" in p]
-            if texts:
-                return " ".join(texts)
-    return ""
-
-
 def is_display_message(msg: dict) -> tuple[bool, str, str]:
     """
     Returns (should_display, role_for_ui, text).
