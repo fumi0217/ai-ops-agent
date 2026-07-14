@@ -12,16 +12,14 @@ def restart_service(service_name: str, reason: str) -> dict:
 
     Args:
         service_name: Name of the service to restart.
-        reason: Reason for the restart (shown in audit log).
+        reason: Reason for the restart (shown to the operator for confirmation).
     """
     resp = httpx.post(
         f"{MOCK_SERVICES_URL}/services/{service_name}/restart",
         timeout=30,
     )
     resp.raise_for_status()
-    result = resp.json()
-    result["reason"] = reason
-    return result
+    return resp.json()
 
 
 def scale_service(service_name: str, replicas: int, reason: str) -> dict:
@@ -32,7 +30,7 @@ def scale_service(service_name: str, replicas: int, reason: str) -> dict:
     Args:
         service_name: Name of the service to scale.
         replicas: Desired replica count (1-10).
-        reason: Reason for scaling (shown in audit log).
+        reason: Reason for scaling (shown to the operator for confirmation).
     """
     resp = httpx.post(
         f"{MOCK_SERVICES_URL}/services/{service_name}/scale",
@@ -40,6 +38,4 @@ def scale_service(service_name: str, replicas: int, reason: str) -> dict:
         timeout=30,
     )
     resp.raise_for_status()
-    result = resp.json()
-    result["reason"] = reason
-    return result
+    return resp.json()
