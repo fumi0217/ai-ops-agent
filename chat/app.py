@@ -118,11 +118,11 @@ if st.session_state.pending_action:
         with col2:
             st.button("❌ キャンセル", on_click=_on_cancel, use_container_width=True)
 
-# ---------------------------------------------------------------------------
-# Chat input
-# ---------------------------------------------------------------------------
+else:
+    # -----------------------------------------------------------------------
+    # Chat input
+    # -----------------------------------------------------------------------
 
-if not st.session_state.pending_action:
     user_input = st.chat_input("例: 全サービスの状況を確認して / payment-serviceのCPUが高い、対処して")
 
     if user_input:
