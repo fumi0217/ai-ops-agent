@@ -9,7 +9,7 @@ Only pure-text turns are shown in the chat UI; function call/response parts are 
 
 import streamlit as st
 
-from chat.engine import is_display_message, resume_after_confirmation, run_conversation
+from chat.engine import describe_error, is_display_message, resume_after_confirmation, run_conversation
 
 st.set_page_config(page_title="AI Ops Agent", page_icon="🤖", layout="wide")
 
@@ -89,7 +89,7 @@ def _on_confirm():
         updated, _ = resume_after_confirmation(st.session_state.messages, pending, confirmed=True)
         st.session_state.messages = updated
     except Exception as e:
-        st.session_state.error = f"エラーが発生しました: {e}"
+        st.session_state.error = describe_error(e)
 
 
 def _on_cancel():
@@ -99,7 +99,7 @@ def _on_cancel():
         updated, _ = resume_after_confirmation(st.session_state.messages, pending, confirmed=False)
         st.session_state.messages = updated
     except Exception as e:
-        st.session_state.error = f"エラーが発生しました: {e}"
+        st.session_state.error = describe_error(e)
 
 
 if st.session_state.pending_action:
@@ -153,6 +153,6 @@ else:
 
                 except Exception as e:
                     status.update(label="エラー", state="error")
-                    st.session_state.error = f"エラーが発生しました: {e}"
+                    st.session_state.error = describe_error(e)
 
         st.rerun()
