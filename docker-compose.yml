@@ -19,7 +19,6 @@ services:
     command: sh -c "python -m scripts.index_runbooks && uvicorn mcp_server.server:mcp.streamable_http_app --factory --host 0.0.0.0 --port 8001"
     ports:
       - "8001:8001"
-    env_file: .env
     environment:
       - MOCK_SERVICES_URL=http://mock_services:8002
     depends_on:
