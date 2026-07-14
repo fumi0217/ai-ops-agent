@@ -31,7 +31,7 @@ pip install -r requirements-light.txt -r requirements-rag.txt
 python -m scripts.index_runbooks
 
 uvicorn mock_services.app:app --host 0.0.0.0 --port 8002
-python -m mcp_server.server                                   # port 8001
+uvicorn mcp_server.server:mcp.streamable_http_app --factory --host 0.0.0.0 --port 8001
 python -m streamlit run chat/app.py --server.port 8000        # UI
 ```
 
