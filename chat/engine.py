@@ -115,7 +115,6 @@ def is_display_message(msg: dict) -> tuple[bool, str, str]:
     parts = msg.get("parts", [])
 
     has_text = any("text" in p for p in parts)
-    has_internal = any("function_call" in p or "function_response" in p for p in parts)
 
     if not has_text:
         return False, "", ""
@@ -123,9 +122,9 @@ def is_display_message(msg: dict) -> tuple[bool, str, str]:
     # If it has text AND function_call, show only the text prefix
     text = " ".join(p["text"] for p in parts if "text" in p)
 
-    if role == "user" and not has_internal:
+    if role == "user":
         return True, "user", text
-    if role == "model" and has_text:
+    if role == "model":
         return True, "assistant", text
 
     return False, "", ""
