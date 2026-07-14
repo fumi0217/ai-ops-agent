@@ -13,19 +13,15 @@ Display: only show parts with "text" keys; function_call / function_response par
 """
 
 import asyncio
-import os
 from typing import Any, Callable
 
-from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 
-load_dotenv()
+from chat.config import GEMINI_API_KEY, MCP_SERVER_URL
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8001")
 MODEL = "gemini-2.5-flash"
 
 # Tools that require human confirmation before execution
