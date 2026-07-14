@@ -2,7 +2,7 @@
 AI Ops MCP Server — exposes operational tools via MCP protocol (streamable-http).
 
 Run with:
-    python -m mcp_server.server
+    uvicorn mcp_server.server:mcp.streamable_http_app --factory --host 0.0.0.0 --port 8001
 """
 
 from mcp.server.fastmcp import FastMCP
@@ -128,8 +128,3 @@ def scale_service(service_name: str, replicas: int, reason: str) -> dict:
         reason: Reason for scaling (included in audit log).
     """
     return _scale_service(service_name, replicas, reason)
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(mcp.streamable_http_app(), host="0.0.0.0", port=8001)
