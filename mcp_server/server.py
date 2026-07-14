@@ -111,7 +111,7 @@ def restart_service(service_name: str, reason: str) -> dict:
 
     Args:
         service_name: Service to restart.
-        reason: Reason for restart (included in audit log).
+        reason: Reason for restart (shown to the operator for confirmation).
     """
     return _restart_service(service_name, reason)
 
@@ -125,6 +125,6 @@ def scale_service(service_name: str, replicas: int, reason: str) -> dict:
     Args:
         service_name: Service to scale.
         replicas: Target replica count (1–10).
-        reason: Reason for scaling (included in audit log).
+        reason: Reason for scaling (shown to the operator for confirmation).
     """
     return _scale_service(service_name, replicas, reason)
