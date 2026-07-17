@@ -56,8 +56,9 @@ services, install both.
   (`api-gateway`, `payment-service`, `order-service`, `user-service`,
   `notification-service`), each with metrics/logs/alerts. `payment-service` and
   `notification-service` start in a "degraded" state on purpose, as a scenario for the
-  agent to investigate. Restarting/scaling a service resets its metrics to the
-  `_HEALTHY_METRICS` baseline.
+  agent to investigate. Restarting a service resets its metrics to the
+  `_HEALTHY_METRICS` baseline; scaling only updates replica counts (and clears
+  "degraded" status if the service was under-replicated) without touching metrics.
 - **`mcp_server/`** (port 8001) — a `FastMCP` server (`mcp_server/server.py`) exposing
   ops actions as MCP tools. Read-only tools (`list_services`, `get_metrics`, `get_health`,
   `get_logs`, `get_alerts`) proxy to `mock_services` over HTTP via

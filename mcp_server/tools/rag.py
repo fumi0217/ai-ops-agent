@@ -39,7 +39,7 @@ def _get_index() -> VectorStoreIndex:
 def search_runbook(query: str, top_k: int = TOP_K) -> list[dict]:
     """
     Search runbooks by semantic similarity.
-    Returns a list of {title, content, score} dicts.
+    Returns a list of {source, content, score} dicts.
     """
     index = _get_index()
     retriever = index.as_retriever(similarity_top_k=top_k)

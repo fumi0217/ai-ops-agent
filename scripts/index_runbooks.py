@@ -5,17 +5,13 @@ Run once (or re-run to rebuild):
     python -m scripts.index_runbooks
 """
 
-import os
 from pathlib import Path
 
-from dotenv import load_dotenv
 from llama_index.core import SimpleDirectoryReader, VectorStoreIndex, StorageContext
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.core import Settings
 import chromadb
-
-load_dotenv()
 
 RUNBOOKS_DIR = Path(__file__).parent.parent / "runbooks"
 CHROMA_PATH = Path(__file__).parent.parent / "chroma_db"
