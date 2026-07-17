@@ -211,18 +211,27 @@ async def _agentic_loop(
         if not func_calls:
             return messages, " ".join(text_parts)
 
-        # Check for mutating tools
-        for fc in func_calls:
-            if fc.name in MUTATING_TOOLS:
-                on_pending_action({
-                    "tool_name": fc.name,
-                    "tool_input": dict(fc.args),
-                })
-                return messages, " ".join(text_parts)
+        # If a mutating tool was requested, every function_call in this turn
+        # still needs a function_response eventually — Gemini expects one per
+        # call. So execute every other call now, and defer only the mutating
+        # one for operator confirmation (resume_after_confirmation_async adds
+        # its response afterwards). Never auto-execute a second mutating call
+        # in the same turn — only one confirmation can be in flight at a time.
+        mutating_fcs = [fc for fc in func_calls if fc.name in MUTATING_TOOLS]
+        mutating_fc = mutating_fcs[0] if mutating_fcs else None
 
-        # Execute all read-only tool calls
         fn_response_parts: list[dict] = []
         for fc in func_calls:
+            if fc is mutating_fc:
+                continue
+            if fc in mutating_fcs:
+                fn_response_parts.append({
+                    "function_response": {
+                        "name": fc.name,
+                        "response": {"result": "他の操作の確認待ちのため保留されました。"},
+                    }
+                })
+                continue
             text, is_error = await _call_mcp_tool(session, fc.name, dict(fc.args))
             fn_response_parts.append({
                 "function_response": {
@@ -230,6 +239,15 @@ async def _agentic_loop(
                     "response": {"error": text} if is_error else {"result": text},
                 }
             })
+
+        if mutating_fc is not None:
+            on_pending_action({
+                "tool_name": mutating_fc.name,
+                "tool_input": dict(mutating_fc.args),
+                "sibling_responses": fn_response_parts,
+            })
+            return messages, " ".join(text_parts)
+
         messages.append({"role": "user", "parts": fn_response_parts})
 
 
@@ -282,7 +300,8 @@ async def resume_after_confirmation_async(
                     }
                 }
 
-            messages.append({"role": "user", "parts": [fn_response]})
+            fn_response_parts = pending_action.get("sibling_responses", []) + [fn_response]
+            messages.append({"role": "user", "parts": fn_response_parts})
             return await _agentic_loop(client, session, genai_tools, messages, lambda _: None)
 
 

@@ -163,6 +163,8 @@ def get_alerts() -> list[dict]:
             alerts.append({"service": svc["name"], "severity": "critical", "message": f"Error rate critical: {m['error_rate_percent']}%"})
         if svc["replicas"]["current"] < svc["replicas"]["desired"]:
             alerts.append({"service": svc["name"], "severity": "warning", "message": f"Replica mismatch: {svc['replicas']['current']}/{svc['replicas']['desired']}"})
+    _SEVERITY_ORDER = {"critical": 0, "warning": 1}
+    alerts.sort(key=lambda a: _SEVERITY_ORDER[a["severity"]])
     return alerts
 
 
