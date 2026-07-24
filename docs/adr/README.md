@@ -15,7 +15,8 @@
 | [0005](0005-env-var-management.md) | 環境変数の管理方針 |
 | [0006](0006-mcp-adoption.md) | ツール呼び出しにMCPを採用 |
 | [0007](0007-rag-for-runbook-search.md) | ランブック検索にRAGを採用 |
-| [0008](0008-streamlit-then-nextjs.md) | UIはまずStreamlit、将来的にNext.jsへ移行 |
+| [0008](0008-streamlit-then-nextjs.md) | UIはまずStreamlit、将来的にNext.jsへ移行(実施済み) |
+| [0009](0009-stateless-chat-api.md) | chat APIはステートレス、フロントエンドがプロキシする |
 
 ## フォーマット
 
