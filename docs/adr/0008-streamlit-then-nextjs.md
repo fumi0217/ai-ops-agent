@@ -27,3 +27,9 @@ MVP段階のUIはStreamlitを採用する。Pythonで完結させることで`ch
 - `chat/engine.py`が呼び出し可能な純粋関数として設計されているため、移行時は`chat/app.py`
   を置き換え、Next.jsからは`chat/engine.py`を薄いHTTP/WebSocket API越しに呼び出す構成に
   差し替えることを想定している（未着手）
+
+## 追記: 移行実施(Next.js化完了)
+
+上記の計画通り、`chat/app.py`(Streamlit)を`chat/api.py`(FastAPI)に置き換え、
+`frontend/`(Next.js)を新設した。`chat/engine.py`は計画通り無改修のまま再利用できた。
+具体的なAPI設計・状態管理の方針は[ADR-0009](0009-stateless-chat-api.md)を参照。

@@ -1,6 +1,6 @@
 # ASGI / uvicorn / FastAPI・FastMCPの関係
 
-`mock_services`と`mcp_server`はどちらも`uvicorn ... --host 0.0.0.0 --port ...`で起動する。
+`mock_services`・`mcp_server`・`chat_api`はいずれも`uvicorn ... --host 0.0.0.0 --port ...`で起動する。
 「HTTPを受け取っているのはuvicornなのに、実際に処理しているのはFastAPI/FastMCPのルーティング」
 という2段構造がやや分かりにくいので、ここに整理しておく。ADR-0001（Dockerイメージの分割）にも
 関連する一般的な技術知識のため、意思決定の記録であるADRとは分けてここにまとめる。
@@ -50,9 +50,12 @@ sequenceDiagram
   `mcp.streamable_http_app`はASGIアプリの**インスタンスではなく、それを組み立てて返す関数**
   （factory）。`--factory`フラグは「これはASGIアプリそのものではなく、呼び出せばASGIアプリを
   返す関数だ」とuvicornに伝えるためのもの。詳細は[ADR-0001](adr/0001-service-split-and-docker-images.md)。
-- **`chat`**: `python -m streamlit run chat/app.py ...`
-  StreamlitはASGI/uvicornを使わず、Tornadoベースの独自サーバーを内蔵している。そのため
-  `chat`だけはこの図の対象外で、docker-composeのcommandにもuvicornは登場しない。
+- **`chat_api`**: `uvicorn chat.api:app --host 0.0.0.0 --port 8003`
+  `app`は`chat/api.py`で定義されたFastAPIインスタンス＝ASGIアプリ本体。`mock_services`と
+  同じパターンで、`--factory`は不要。
+- **`frontend`**: `node server.js`（Next.jsのstandalone出力）
+  Next.jsはASGI/uvicornを使わず、Node.js上で自身のHTTPサーバーを内蔵している。そのため
+  `frontend`だけはこの図の対象外で、docker-composeのcommandにもuvicornは登場しない。
 
 ## なぜASGI（非同期）が必要か
 

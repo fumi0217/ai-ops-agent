@@ -1,7 +1,7 @@
 """
 Chat Engine — orchestrates Gemini API with MCP tools and human-in-the-loop confirmation.
 
-Message history format (stored in Streamlit session_state):
+Message history format (held by the client, round-tripped through chat/api.py):
   [
     {"role": "user",  "parts": [{"text": "..."}]},
     {"role": "model", "parts": [{"text": "..."}, {"function_call": {"name": "...", "args": {...}}}]},
@@ -12,7 +12,6 @@ Message history format (stored in Streamlit session_state):
 Display: only show parts with "text" keys; function_call / function_response parts are internal.
 """
 
-import asyncio
 from typing import Any, Callable
 
 import httpx
@@ -273,8 +272,17 @@ async def resume_after_confirmation_async(
     messages: list[dict],
     pending_action: dict,
     confirmed: bool,
+    on_pending_action: Callable,
 ) -> tuple[list[dict], str]:
-    """Resume after operator confirms or denies a mutating operation."""
+    """
+    Resume after operator confirms or denies a mutating operation.
+
+    The continued turn may itself surface another mutating tool call (e.g. a
+    second mutating call deferred from the same original turn, re-issued by
+    the model, or an unrelated new one) — on_pending_action must be a real
+    callback (not a no-op) so that gets surfaced to the caller instead of
+    being silently dropped.
+    """
     client = genai.Client(api_key=GEMINI_API_KEY)
     async with streamablehttp_client(f"{MCP_SERVER_URL}/mcp") as (read, write, _):
         async with ClientSession(read, write) as session:
@@ -302,23 +310,4 @@ async def resume_after_confirmation_async(
 
             fn_response_parts = pending_action.get("sibling_responses", []) + [fn_response]
             messages.append({"role": "user", "parts": fn_response_parts})
-            return await _agentic_loop(client, session, genai_tools, messages, lambda _: None)
-
-
-# ---------------------------------------------------------------------------
-# Synchronous wrappers for Streamlit
-# ---------------------------------------------------------------------------
-
-def run_conversation(
-    messages: list[dict],
-    on_pending_action: Callable,
-) -> tuple[list[dict], str]:
-    return asyncio.run(run_conversation_async(messages, on_pending_action))
-
-
-def resume_after_confirmation(
-    messages: list[dict],
-    pending_action: dict,
-    confirmed: bool,
-) -> tuple[list[dict], str]:
-    return asyncio.run(resume_after_confirmation_async(messages, pending_action, confirmed))
+            return await _agentic_loop(client, session, genai_tools, messages, on_pending_action)

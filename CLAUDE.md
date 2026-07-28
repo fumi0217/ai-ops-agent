@@ -22,12 +22,13 @@ Requires a `.env` (copy from `.env.example`) with `GEMINI_API_KEY` set
 (https://aistudio.google.com/app/apikey).
 
 ```bash
-# All three services via Docker — mcp_server rebuilds the RAG index on every
+# All four services via Docker — mcp_server rebuilds the RAG index on every
 # startup (see docker-compose.yml), so no manual indexing step is needed here.
 docker-compose up --build
 ```
 
-Or run each service locally (in separate terminals, in this order):
+Or run each service locally (in separate terminals, in this order; `frontend` also
+needs Node.js 20+):
 
 ```bash
 pip install -r requirements-light.txt -r requirements-rag.txt
@@ -37,19 +38,27 @@ python -m scripts.index_runbooks
 
 uvicorn mock_services.app:app --host 0.0.0.0 --port 8002
 uvicorn mcp_server.server:mcp.streamable_http_app --factory --host 0.0.0.0 --port 8001
-python -m streamlit run chat/app.py --server.port 8000        # UI
+uvicorn chat.api:app --host 0.0.0.0 --port 8003
 ```
 
-There is no test suite or linter configured in this repo.
+```bash
+cd frontend
+npm install
+CHAT_API_URL=http://localhost:8003 npm run dev               # UI
+```
+
+There is no test suite or linter configured for the Python services in this repo
+(`frontend` has `next lint`/`next build`'s TypeScript check, but no test suite either).
 
 ## Architecture
 
-Three services, wired together by `docker-compose.yml`, built from two Docker images:
-`Dockerfile.light` (`mock_services` + `chat` — no RAG deps) and `Dockerfile.rag`
-(`mcp_server` — pulls in llama-index/chromadb/sentence-transformers, so it's the heavy
-one). Each Dockerfile installs only its own split requirements file
-(`requirements-light.txt` or `requirements-rag.txt`); for local dev running all three
-services, install both.
+Four services, wired together by `docker-compose.yml`. The three Python services are
+built from two Docker images: `Dockerfile.light` (`mock_services` + `chat_api` — no RAG
+deps) and `Dockerfile.rag` (`mcp_server` — pulls in
+llama-index/chromadb/sentence-transformers, so it's the heavy one). Each Dockerfile
+installs only its own split requirements file (`requirements-light.txt` or
+`requirements-rag.txt`); for local dev running all three Python services, install both.
+`frontend` is a separate Next.js/Node app with its own `frontend/Dockerfile`.
 
 - **`mock_services/`** (port 8002, FastAPI) — simulates a real ops backend. All state
   (`mock_services/state.py`) is in-memory and resets on restart: 5 hardcoded services
@@ -73,29 +82,40 @@ services, install both.
   It's LLM-free — pure retrieval, returning raw chunks for the agent to reason over.
   The module-level `_index` is a lazy singleton. Because this pulls in
   llama-index/chromadb/sentence-transformers (torch), `mcp_server` is built from a
-  separate, heavier image (`Dockerfile.rag`) than `mock_services`/`chat`
+  separate, heavier image (`Dockerfile.rag`) than `mock_services`/`chat_api`
   (`Dockerfile.light`) — see `docker-compose.yml`.
   `TransportSecuritySettings` in `server.py` allowlists the `mcp_server` hostname (in
-  addition to localhost) since the chat container reaches it as `http://mcp_server:8001`
-  under Docker.
-- **`chat/`** (port 8000, Streamlit) — the agent loop and UI.
+  addition to localhost) since the `chat_api` container reaches it as
+  `http://mcp_server:8001` under Docker.
+- **`chat/`** (port 8003, FastAPI, internal-only — not reachable from the browser) — the
+  agent loop and its HTTP API.
   - `chat/engine.py` is the core: it converts MCP tool schemas to Gemini
     `FunctionDeclaration`s, runs the agentic loop (`_agentic_loop`) against
     `gemini-2.5-flash`, and holds the human-in-the-loop gate: any tool call whose name is
     in `MUTATING_TOOLS` (`restart_service`, `scale_service`) is intercepted *before*
-    execution — the loop returns control to the UI with a `pending_action` instead of
-    calling the tool. `resume_after_confirmation_async` re-enters the loop after the
-    operator approves/denies, injecting a synthetic `function_response`.
-  - Message history is stored in `st.session_state.messages` using the raw **Gemini
-    content format** (`{"role": "user"|"model", "parts": [...]}`), not a custom chat
-    schema — `chat/app.py` and `chat/engine.py` both read/write this shape directly.
-    `is_display_message()` decides what's shown: only parts with a `"text"` key are
-    rendered; `function_call`/`function_response` parts are history-only and hidden from
-    the UI.
-  - `chat/app.py` is a standard Streamlit rerun-driven UI: it renders history, then a
-    confirmation card (if `pending_action` is set) with per-tool Japanese labels/warnings
-    (`_TOOL_LABELS`, `_TOOL_WARNINGS`), then the chat input. Every user action ends in
-    `st.rerun()`.
+    execution — the loop returns control to the caller with a `pending_action` instead of
+    calling the tool. If other (non-mutating) tool calls were requested in the same model
+    turn, they execute immediately and their responses are held in the pending action's
+    `sibling_responses` until confirmation. `resume_after_confirmation_async` re-enters the
+    loop after the operator approves/denies, merging `sibling_responses` with the mutating
+    tool's own response into one Gemini turn.
+  - `chat/engine.py` is intentionally UI-framework-agnostic: it takes a `messages` list
+    (the raw **Gemini content format**, `{"role": "user"|"model", "parts": [...]}`) and
+    returns an updated one — no server-side session state. `chat/api.py` is a thin FastAPI
+    wrapper around it: `POST /chat` calls `run_conversation_async`, `POST /chat/confirm`
+    calls `resume_after_confirmation_async`. Per-tool Japanese labels/warnings
+    (`_TOOL_LABELS`, `_TOOL_WARNINGS`) and the confirmation card's description text live
+    here too, resolved into the `pending_action` response (`label`/`warning`/
+    `description`) so the frontend doesn't need its own copy of tool metadata.
+    `is_display_message()`-equivalent filtering (only parts with a `"text"` key are
+    user-visible) is ported to the frontend as `frontend/lib/isDisplayMessage.ts`.
+- **`frontend/`** (port 8000 externally, Next.js/TypeScript) — the UI. `app/page.tsx` is a
+  client component holding `messages`/`pendingAction`/`loading`/`error` in React state (no
+  server-side session — the client holds the full history and sends it whole on every
+  request, see [ADR-0009](docs/adr/0009-stateless-chat-api.md)). `app/api/chat/route.ts`
+  and `app/api/chat/confirm/route.ts` are Route Handlers that proxy to `chat_api` over the
+  internal Docker network (`CHAT_API_URL`); the browser never talks to `chat_api` directly,
+  so no CORS setup is needed.
 - **`runbooks/`** — markdown runbooks (high CPU, high memory, latency spike, service
   restart) that get chunked/embedded by `scripts/index_runbooks.py` into `chroma_db/`.
   `docker-compose.yml`'s `mcp_server` command runs this script on every container
@@ -117,5 +137,6 @@ services, install both.
 A new ops action needs three pieces kept in sync: the mock endpoint in
 `mock_services/app.py` + `state.py`, the MCP tool wrapper in `mcp_server/tools/` +
 registration in `mcp_server/server.py`, and — if it's mutating — an entry in
-`MUTATING_TOOLS` plus a label/warning in `chat/app.py`'s `_TOOL_LABELS`/`_TOOL_WARNINGS`
-so the confirmation card renders correctly.
+`MUTATING_TOOLS` plus a label/warning in `chat/api.py`'s `_TOOL_LABELS`/`_TOOL_WARNINGS`
+so the confirmation card renders correctly (the frontend renders whatever `label`/
+`warning`/`description` the API returns — it has no tool-name mapping of its own).

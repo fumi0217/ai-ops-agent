@@ -4,13 +4,10 @@ google-genai>=1.0.0
 # MCP
 mcp[cli]>=1.0.0
 
-# Web framework (mock services HTTP API + MCP client transport)
+# Web framework (mock_services + chat API, MCP client transport)
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
 httpx>=0.28.0
-
-# Chat UI
-streamlit>=1.41.0
 
 # Utilities
 python-dotenv>=1.0.0
