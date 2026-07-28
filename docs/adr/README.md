@@ -17,6 +17,8 @@
 | [0007](0007-rag-for-runbook-search.md) | ランブック検索にRAGを採用 |
 | [0008](0008-streamlit-then-nextjs.md) | UIはまずStreamlit、将来的にNext.jsへ移行(実施済み) |
 | [0009](0009-stateless-chat-api.md) | chat APIはステートレス、フロントエンドがプロキシする |
+| [0010](0010-terraform-state-bootstrap-split.md) | Terraform stateのS3化とbootstrap rootの分離 |
+| [0011](0011-github-actions-oidc-cicd.md) | GitHub ActionsのCI/CDにOIDC federationを採用 |
 
 ## フォーマット
 

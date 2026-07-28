@@ -1,0 +1,105 @@
+name: Docker Build
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "Dockerfile.light"
+      - "Dockerfile.rag"
+      - "requirements-light.txt"
+      - "requirements-rag.txt"
+      - "mock_services/**"
+      - "mcp_server/**"
+      - "chat/**"
+      - "scripts/**"
+      - "runbooks/**"
+      - "frontend/**"
+      - "docker-compose.yml"
+      - ".github/workflows/docker-build.yml"
+  push:
+    branches: [main]
+    paths:
+      - "Dockerfile.light"
+      - "Dockerfile.rag"
+      - "requirements-light.txt"
+      - "requirements-rag.txt"
+      - "mock_services/**"
+      - "mcp_server/**"
+      - "chat/**"
+      - "scripts/**"
+      - "runbooks/**"
+      - "frontend/**"
+      - "docker-compose.yml"
+      - ".github/workflows/docker-build.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  # PR: build-only smoke test that all 3 Dockerfiles still build. No AWS
+  # credentials requested at all — this job never needs id-token: write.
+  build:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: light
+            context: .
+            dockerfile: Dockerfile.light
+          - name: rag
+            context: .
+            dockerfile: Dockerfile.rag
+          - name: frontend
+            context: ./frontend
+            dockerfile: frontend/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: false
+
+  # main: build + push to ECR, tagged with the commit SHA and `latest`.
+  build-and-push:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    strategy:
+      matrix:
+        include:
+          - name: light
+            context: .
+            dockerfile: Dockerfile.light
+            repository: ai-ops-agent-light
+          - name: rag
+            context: .
+            dockerfile: Dockerfile.rag
+            repository: ai-ops-agent-rag
+          - name: frontend
+            context: ./frontend
+            dockerfile: frontend/Dockerfile
+            repository: ai-ops-agent-frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ${{ steps.ecr-login.outputs.registry }}/${{ matrix.repository }}:${{ github.sha }}
+            ${{ steps.ecr-login.outputs.registry }}/${{ matrix.repository }}:latest

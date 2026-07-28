@@ -1,0 +1,11 @@
+# Copy this file to terraform.tfvars and fill in your values (local use only —
+# CI supplies these as TF_VAR_my_ip / TF_VAR_public_key_val from GitHub Secrets,
+# see .github/workflows/terraform.yml).
+# cp terraform.tfvars.example terraform.tfvars
+
+# Your public IP, no CIDR suffix (the code appends /32) — allowed to SSH/access
+# the instance.
+my_ip = "203.0.113.10"
+
+# An SSH public key to install on the instance.
+public_key_val = "ssh-ed25519 AAAA... you@example.com"

@@ -1,5 +1,5 @@
 variable "region" {
-  type = string
+  type    = string
   default = "ap-northeast-3"
 }
 
@@ -8,7 +8,7 @@ variable "my_ip" {
 }
 
 variable "private_ip" {
-  type = string
+  type    = string
   default = "192.168.0.0"
 }
 
@@ -17,6 +17,6 @@ variable "public_key_val" {
 }
 
 variable "ami" {
-  type = string
+  type    = string
   default = ""
 }

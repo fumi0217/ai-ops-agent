@@ -171,6 +171,17 @@ CHAT_API_URL=http://localhost:8003 npm run dev
 
 ![スケールアウト後の結果報告](docs/images/05-result-after-confirm.png)
 
+## インフラ/デプロイ
+
+AWS上のインフラは`infra/`でTerraform管理しています(VPC + EC2 + ECR、stateはS3)。
+GitHub Actionsで`terraform apply`とDockerイメージのビルド・ECR pushを自動化していますが、
+**EC2上への反映(新しいイメージのpull・再起動)は現状手動**です。認証はGitHub Actionsの
+OIDC federationのみで、静的なAWSアクセスキーは使っていません。
+
+一度きりのセットアップ手順は[infra/bootstrap/README.md](infra/bootstrap/README.md)、
+設計の背景は[ADR-0010](docs/adr/0010-terraform-state-bootstrap-split.md)・
+[ADR-0011](docs/adr/0011-github-actions-oidc-cicd.md)を参照してください。
+
 ## 補足
 
 - 状態はすべてインメモリで、サービス再起動時にリセットされます。

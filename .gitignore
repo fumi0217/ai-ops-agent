@@ -38,5 +38,17 @@ logs/
 .coverage
 htmlcov/
 
-# Streamlit
-.streamlit/secrets.toml
+# Terraform
+infra/.terraform/
+infra/bootstrap/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+infra/terraform.tfvars
+infra/bootstrap/terraform.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+# .terraform.lock.hcl is intentionally NOT ignored — Terraform recommends
+# committing it for reproducible provider versions across machines/CI.
