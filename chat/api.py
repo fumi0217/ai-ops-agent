@@ -91,11 +91,17 @@ async def chat(req: ChatRequest) -> ChatResponse:
 
 @app.post("/chat/confirm", response_model=ChatResponse)
 async def confirm(req: ConfirmRequest) -> ChatResponse:
+    pending_holder: list[dict] = []
+
+    def on_pending_action(action: dict) -> None:
+        pending_holder.append(action)
+
     try:
         messages, reply = await resume_after_confirmation_async(
-            req.messages, req.pending_action, req.confirmed
+            req.messages, req.pending_action, req.confirmed, on_pending_action
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=describe_error(exc)) from exc
 
-    return ChatResponse(messages=messages, reply=reply, pending_action=None)
+    pending_action = _build_pending_action(pending_holder[0]) if pending_holder else None
+    return ChatResponse(messages=messages, reply=reply, pending_action=pending_action)

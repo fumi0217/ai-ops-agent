@@ -272,8 +272,17 @@ async def resume_after_confirmation_async(
     messages: list[dict],
     pending_action: dict,
     confirmed: bool,
+    on_pending_action: Callable,
 ) -> tuple[list[dict], str]:
-    """Resume after operator confirms or denies a mutating operation."""
+    """
+    Resume after operator confirms or denies a mutating operation.
+
+    The continued turn may itself surface another mutating tool call (e.g. a
+    second mutating call deferred from the same original turn, re-issued by
+    the model, or an unrelated new one) — on_pending_action must be a real
+    callback (not a no-op) so that gets surfaced to the caller instead of
+    being silently dropped.
+    """
     client = genai.Client(api_key=GEMINI_API_KEY)
     async with streamablehttp_client(f"{MCP_SERVER_URL}/mcp") as (read, write, _):
         async with ClientSession(read, write) as session:
@@ -301,4 +310,4 @@ async def resume_after_confirmation_async(
 
             fn_response_parts = pending_action.get("sibling_responses", []) + [fn_response]
             messages.append({"role": "user", "parts": fn_response_parts})
-            return await _agentic_loop(client, session, genai_tools, messages, lambda _: None)
+            return await _agentic_loop(client, session, genai_tools, messages, on_pending_action)
