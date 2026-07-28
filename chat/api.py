@@ -36,7 +36,7 @@ def _describe_action(tool_name: str, tool_input: dict) -> str:
         replicas = tool_input.get("replicas", "?")
         reason   = tool_input.get("reason", "—")
         return f"{svc} を {replicas}台 にスケール変更します\n\n理由: {reason}"
-    return str(tool_input)
+    raise ValueError(f"_describe_action: unknown mutating tool {tool_name!r}")
 
 
 def _build_pending_action(raw: dict) -> dict:
