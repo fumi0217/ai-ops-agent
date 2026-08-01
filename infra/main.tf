@@ -31,12 +31,12 @@ data "aws_ami" "al2023" {
 }
 
 locals {
-  key_name          = "terraform-key"
+  key_name          = "ai-ops-agent-key"
   public_key_val    = var.public_key_val
   ami               = length(var.ami) > 0 ? var.ami : data.aws_ami.al2023.id
   region            = var.region
   availability_zone = "${var.region}a"
-  private_ip        = var.private_ip
+  vpc_cidr_base     = var.vpc_cidr_base
   allowed_cidr      = "${var.my_ip}/32"
 }
 
@@ -47,7 +47,7 @@ provider "aws" {
 
   default_tags {
     tags = {
-      ManagedBy = "Terraform"
+      ManagedBy = "Terraform-ai-ops-agent"
     }
   }
 }

@@ -1,9 +1,9 @@
-resource "aws_key_pair" "my_key" {
+resource "aws_key_pair" "this" {
   key_name   = local.key_name
   public_key = local.public_key_val
 }
 
-resource "aws_instance" "my_public_vm" {
+resource "aws_instance" "this" {
   ami                         = local.ami
   associate_public_ip_address = true
   availability_zone           = local.availability_zone
@@ -12,7 +12,7 @@ resource "aws_instance" "my_public_vm" {
   placement_group             = null
   subnet_id                   = aws_subnet.public_subnet.id
   vpc_security_group_ids = [
-    aws_security_group.my_sec_group.id,
+    aws_security_group.this.id,
   ]
   user_data = <<-EOF
         #!/bin/bash
@@ -29,6 +29,6 @@ resource "aws_instance" "my_public_vm" {
     delete_on_termination = true
   }
   tags = {
-    Name = "public vm"
+    Name = "ai-ops-agent-server"
   }
 }

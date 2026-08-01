@@ -7,7 +7,7 @@ variable "my_ip" {
   type = string
 }
 
-variable "private_ip" {
+variable "vpc_cidr_base" {
   type    = string
   default = "192.168.0.0"
 }
