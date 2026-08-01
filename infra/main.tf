@@ -12,7 +12,7 @@ terraform {
   # root's `terraform output` (backend blocks can't reference variables, so
   # these are literals copied in by hand after the one-time bootstrap apply).
   backend "s3" {
-    bucket       = "REPLACE_WITH_BOOTSTRAP_OUTPUT_state_bucket_name"
+    bucket       = "ai-ops-agent-tfstate-345594608009"
     key          = "infra/terraform.tfstate"
     region       = "ap-northeast-3"
     encrypt      = true
