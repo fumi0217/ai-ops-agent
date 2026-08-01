@@ -143,7 +143,14 @@ installs only its own split requirements file (`requirements-light.txt` or
   and-egg: CI can't assume a role that doesn't exist yet). See
   [infra/bootstrap/README.md](infra/bootstrap/README.md).
 - **`.github/workflows/terraform.yml`** — `terraform plan` on PRs touching `infra/**`
-  (output goes to the job summary, not a PR comment), `terraform apply` on push to `main`.
+  (excluding `infra/bootstrap/**`, which this workflow never touches; output goes to the
+  job summary, not a PR comment), `terraform apply` on push to `main` **or** on a manual
+  `workflow_dispatch` from `main` (for a re-apply with no `infra/**` file change — e.g.
+  after rotating `TF_VAR_MY_IP`, since the push trigger only fires on an actual diff).
+  Passes `TF_VAR_ami` from the `AMI_ID` repo variable — left empty until pinned (see the
+  workflow's inline comment): `infra/main.tf` falls back to the latest Amazon Linux 2023
+  AMI when unset, which is fine for the very first apply but must be pinned afterwards,
+  since changing an `aws_instance`'s AMI forces a destroy+recreate.
   **`.github/workflows/docker-build.yml`** — builds all 3 images on PRs (no push, no AWS
   creds needed); pushing to ECR (tagged `<sha>` and `latest`) is a manual
   `workflow_dispatch` from `main`, not automatic on merge — this repo has no always-on

@@ -3,10 +3,16 @@ name: Terraform
 on:
   pull_request:
     branches: [main]
-    paths: ["infra/**"]
+    paths: ["infra/**", "!infra/bootstrap/**"]
   push:
     branches: [main]
-    paths: ["infra/**"]
+    paths: ["infra/**", "!infra/bootstrap/**"]
+  # Manual re-apply with no infra/** file change — e.g. after rotating
+  # TF_VAR_MY_IP (your IP changing is exactly what this variable exists
+  # for) or pinning AMI_ID. The push trigger above only fires on an actual
+  # file diff, so a secrets/variables-only change needs this to avoid
+  # requiring a throwaway PR just to re-run apply.
+  workflow_dispatch:
 
 permissions:
   id-token: write
@@ -27,6 +33,15 @@ jobs:
     env:
       TF_VAR_my_ip: ${{ secrets.TF_VAR_MY_IP }}
       TF_VAR_public_key_val: ${{ secrets.TF_VAR_PUBLIC_KEY_VAL }}
+      # Left unset (empty) until pinned: infra/main.tf falls back to the
+      # latest Amazon Linux 2023 AMI when var.ami is empty, which is fine
+      # for the very first apply but NOT safe to leave unset afterwards —
+      # changing an aws_instance's ami forces a destroy+recreate, so every
+      # CI apply would risk replacing the running instance the moment AWS
+      # publishes a newer AL2023 AMI. After the first apply, copy the
+      # actual AMI id from the `ec2_info` output into the AMI_ID repo
+      # variable to pin it.
+      TF_VAR_ami: ${{ vars.AMI_ID }}
 
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +51,10 @@ jobs:
           terraform_version: "1.15.*"
 
       - name: terraform fmt
-        run: terraform fmt -check -recursive
+        # No -recursive: infra/'s only subdirectory is infra/bootstrap/,
+        # which this workflow deliberately doesn't touch (see the path
+        # filter above) — recursing would pull it into scope anyway.
+        run: terraform fmt -check
         # infra/vpc.tf and infra/ec2.tf predate this workflow and aren't
         # fmt-clean yet — don't block on pre-existing style debt unrelated
         # to this change. (Recommend a follow-up formatting-only PR.)
@@ -61,5 +79,5 @@ jobs:
         run: terraform show -no-color tfplan >> "$GITHUB_STEP_SUMMARY"
 
       - name: terraform apply (main only)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
         run: terraform apply -input=false -auto-approve tfplan

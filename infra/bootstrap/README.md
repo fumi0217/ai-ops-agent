@@ -53,6 +53,30 @@ cd infra
 terraform init -reconfigure   # ローカルstateからS3バックエンドへ移行
 ```
 
+## GitHub repoに設定するSecrets/Variables
+
+CIから`infra/`を触れるようにするには、上記の`AWS_ROLE_ARN`に加えて以下も
+GitHub repo Settings → Secrets and variables → Actions で設定する。
+
+| 名前 | 種別 | 値 |
+|---|---|---|
+| `AWS_ROLE_ARN` | Variable | `github_actions_role_arn`(上記の表を参照) |
+| `AWS_REGION` | Variable | `ap-northeast-3` |
+| `TF_VAR_MY_IP` | Secret | あなたのグローバルIP(CIDR無し、コード側で`/32`を付与) |
+| `TF_VAR_PUBLIC_KEY_VAL` | Secret | EC2に登録するSSH公開鍵 |
+| `AMI_ID` | Variable | 初回applyのみ空でよい(下記参照) |
+
+`TF_VAR_MY_IP`はIPが変わるたびに更新が必要。値を変えただけでは`infra/**`に
+コード差分がないため`terraform.yml`のpushトリガーは発火しない。値を更新したら
+`terraform.yml`を`workflow_dispatch`(Actionsタブから手動実行)でapplyすること。
+
+`AMI_ID`は初回apply後に必ず設定すること。空のままだと[main.tf](../main.tf)の
+`data "aws_ami" "al2023"`が毎回「その時点の最新Amazon Linux 2023 AMI」を取得し、
+`aws_instance`はAMI変更で強制的に再作成(destroy→create)されるため、AWSが新しい
+AL2023 AMIを出すたびに次のCI applyでEC2インスタンスが意図せず作り直されてしまう。
+初回apply後、`ec2_info` outputに出るAMI IDをコピーして`AMI_ID`に設定し、以後は
+それを固定値として使うこと。
+
 ## 注意
 
 - このディレクトリのstateは意図的にローカル管理のまま(`infra/`用のバケットを自分自身が
