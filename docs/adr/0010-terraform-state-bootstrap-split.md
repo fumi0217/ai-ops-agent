@@ -2,8 +2,7 @@
 
 ## Context
 
-`infra/`(VPC/EC2/セキュリティグループ)のstateはこれまでローカル管理だった
-(`main.tf`に「最終的にはバックエンドでs3とかgcsにstateは置く」というコメントのみ)。
+`infra/`(VPC/EC2/セキュリティグループ)のstateはこれまでローカル管理だった。
 GitHub Actionsから`terraform apply`を実行するには、stateをリモート(S3)に置く必要がある。
 
 ただし、そのS3バケット自体を`infra/`が管理するstateの中で作ろうとすると、「`infra/`が

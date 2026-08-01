@@ -29,15 +29,16 @@ ECRリポジトリは`docker-compose.yml`が実際にビルドする3イメー�
 サービス数(4)ではなくイメージ数(3)に合わせている。
 
 `docker-build.yml`はPRでは各Dockerfileのビルドのみ(push無し、AWS認証情報も要求しない)。
-ビルド+ECR pushは**mainへのpushでは自動実行せず、`workflow_dispatch`による手動トリガー
-のみ**とする(mainからの実行に限定、`if: github.ref == 'refs/heads/main'`)。このリポジトリは
-ポートフォリオ用で常時稼働するprod環境を持たないため、merge毎に自動でイメージを
-作り続けても消費者がいない。実際にEC2を起動してデモする直前などに手動で叩き、
-ECRに新しいイメージ(RAG依存を含む重いイメージも含む)を用意しておいてからpullする、
-という運用を想定している。`terraform.yml`は引き続きPRでは`terraform plan`のみ
-(結果は`$GITHUB_STEP_SUMMARY`に出力。PRコメントにはしない — そのために
-`pull-requests: write`権限を追加で持たせずに済むため)、main pushで`apply`する
-(こちらはstateの整合性を保つため自動のままにしている)。
+ビルド+ECR pushは`workflow_dispatch`による手動トリガーで行う(mainからの実行に限定、
+`if: github.ref == 'refs/heads/main'`)。このリポジトリはポートフォリオ用で常時稼働する
+prod環境を持たないため、merge毎に自動でイメージを作り続けても消費者がいない。実際に
+EC2を起動してデモする直前などに手動で叩き、ECRに新しいイメージ(RAG依存を含む重い
+イメージも含む)を用意しておいてからpullする、という運用を想定している。`terraform.yml`は
+PRでは`terraform plan`のみ(結果は`$GITHUB_STEP_SUMMARY`に出力。PRコメントには
+しない — そのために`pull-requests: write`権限を追加で持たせずに済むため)、main pushで
+`apply`する(stateの整合性を保つため自動で実行する)。`infra/**`の変更を伴わない
+再apply(例: `TF_VAR_MY_IP`のローテーション)向けに、`workflow_dispatch`による
+手動実行にも対応している。
 
 **EC2上のdocker-composeを新しいイメージで更新する部分は、今回のスコープに含めない。**
 CIの責務は「手動トリガーでECRにイメージをpushできる状態を用意する」ところまでとし、

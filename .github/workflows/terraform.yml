@@ -55,10 +55,6 @@ jobs:
         # which this workflow deliberately doesn't touch (see the path
         # filter above) — recursing would pull it into scope anyway.
         run: terraform fmt -check
-        # infra/vpc.tf and infra/ec2.tf predate this workflow and aren't
-        # fmt-clean yet — don't block on pre-existing style debt unrelated
-        # to this change. (Recommend a follow-up formatting-only PR.)
-        continue-on-error: true
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:

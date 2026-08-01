@@ -153,8 +153,8 @@ installs only its own split requirements file (`requirements-light.txt` or
   since changing an `aws_instance`'s AMI forces a destroy+recreate.
   **`.github/workflows/docker-build.yml`** — builds all 3 images on PRs (no push, no AWS
   creds needed); pushing to ECR (tagged `<sha>` and `latest`) is a manual
-  `workflow_dispatch` from `main`, not automatic on merge — this repo has no always-on
-  prod consumer, so trigger it by hand right before you actually want to deploy/demo.
+  `workflow_dispatch` from `main` — this repo has no always-on prod consumer, so trigger
+  it by hand right before you actually want to deploy/demo.
   Both authenticate via the same OIDC role (see [ADR-0011](docs/adr/0011-github-actions-oidc-cicd.md)).
   **Neither workflow deploys onto the EC2 instance** — pulling the new images and
   restarting `docker-compose` there is still a manual step today (see
