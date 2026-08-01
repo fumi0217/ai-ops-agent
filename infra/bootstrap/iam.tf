@@ -32,10 +32,14 @@ data "aws_iam_policy_document" "github_actions_trust" {
       values   = ["sts.amazonaws.com"]
     }
 
-    # Scoped to exactly this repo's push-to-main and pull_request contexts.
-    # pull_request is needed because terraform.yml's PR job runs a real
-    # `terraform plan` against AWS to diff; docker-build.yml's PR job never
-    # assumes this role at all (build-only, see .github/workflows/docker-build.yml).
+    # Scoped to exactly this repo's main-branch and pull_request contexts.
+    # The `sub` claim for a run tied to a ref (push, workflow_dispatch, ...)
+    # is the same `ref:refs/heads/main` regardless of which event triggered
+    # it, so this covers both terraform.yml's push-triggered apply and
+    # docker-build.yml's workflow_dispatch-triggered ECR push. pull_request
+    # is needed because terraform.yml's PR job runs a real `terraform plan`
+    # against AWS to diff; docker-build.yml's PR job never assumes this role
+    # at all (build-only, see .github/workflows/docker-build.yml).
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"

@@ -14,11 +14,13 @@ federationを使う。GitHub側のOIDCプロバイダーをAWS IAMに登録し(`
 
 IAM roleは1つに集約し、`terraform.yml`(`infra/`のplan/apply)と`docker-build.yml`
 (Dockerイメージのビルド&push)の両方から使う。信頼ポリシーの`sub`条件は、このリポジトリの
-`push:main`と`pull_request`の2コンテキストのみに絞る(`pull_request`が必要なのは、
-`terraform.yml`のPRジョブが実際のAWS環境に対して`terraform plan`を実行し差分を見るため。
-`docker-build.yml`のPRジョブはビルドのみでこのroleを一切assumeしない)。単一リポジトリ・
-単一環境のポートフォリオ規模でrole を2つに分ける実益がないため、権限の絞り込みは
-IAM policy側(EC2/ECR/S3の具体的なアクションのみ、`iam:*`は一切含まない)で行う。
+`ref:refs/heads/main`(mainブランチに紐づく実行 — push/workflow_dispatchいずれの
+トリガーでも、mainから実行される限り同じ`sub`クレームになる)と`pull_request`の
+2コンテキストのみに絞る(`pull_request`が必要なのは、`terraform.yml`のPRジョブが
+実際のAWS環境に対して`terraform plan`を実行し差分を見るため。`docker-build.yml`の
+PRジョブはビルドのみでこのroleを一切assumeしない)。単一リポジトリ・単一環境の
+ポートフォリオ規模でrole を2つに分ける実益がないため、権限の絞り込みはIAM policy側
+(EC2/ECR/S3の具体的なアクションのみ、`iam:*`は一切含まない)で行う。
 
 ECRリポジトリは`docker-compose.yml`が実際にビルドする3イメージ(`Dockerfile.light`/
 `Dockerfile.rag`/`frontend/Dockerfile`)にそれぞれ1つずつ、計3つ作る。
@@ -26,13 +28,20 @@ ECRリポジトリは`docker-compose.yml`が実際にビルドする3イメー�
 使っているため([ADR-0001](0001-service-split-and-docker-images.md))、
 サービス数(4)ではなくイメージ数(3)に合わせている。
 
-`docker-build.yml`はPRでは各Dockerfileのビルドのみ(push無し、AWS認証情報も要求しない)、
-mainへのpush時のみビルド+ECR pushを行う。`terraform.yml`も同様にPRでは`terraform plan`
-のみ(結果は`$GITHUB_STEP_SUMMARY`に出力。PRコメントにはしない — そのために
-`pull-requests: write`権限を追加で持たせずに済むため)、main pushで`apply`する。
+`docker-build.yml`はPRでは各Dockerfileのビルドのみ(push無し、AWS認証情報も要求しない)。
+ビルド+ECR pushは**mainへのpushでは自動実行せず、`workflow_dispatch`による手動トリガー
+のみ**とする(mainからの実行に限定、`if: github.ref == 'refs/heads/main'`)。このリポジトリは
+ポートフォリオ用で常時稼働するprod環境を持たないため、merge毎に自動でイメージを
+作り続けても消費者がいない。実際にEC2を起動してデモする直前などに手動で叩き、
+ECRに新しいイメージ(RAG依存を含む重いイメージも含む)を用意しておいてからpullする、
+という運用を想定している。`terraform.yml`は引き続きPRでは`terraform plan`のみ
+(結果は`$GITHUB_STEP_SUMMARY`に出力。PRコメントにはしない — そのために
+`pull-requests: write`権限を追加で持たせずに済むため)、main pushで`apply`する
+(こちらはstateの整合性を保つため自動のままにしている)。
 
 **EC2上のdocker-composeを新しいイメージで更新する部分は、今回のスコープに含めない。**
-CIの責務は「ECRにイメージがpushされるところまで」とし、実機への反映は当面手動とする。
+CIの責務は「手動トリガーでECRにイメージをpushできる状態を用意する」ところまでとし、
+実機への反映は当面手動とする。
 
 ## Consequences
 
@@ -42,5 +51,5 @@ CIの責務は「ECRにイメージがpushされるところまで」とし、�
 - ECRリポジトリ名(`ai-ops-agent-{light,rag,frontend}`)は`infra/ecr.tf`・
   `docker-build.yml`・`infra/bootstrap/iam.tf`のIAMポリシーのARNの3箇所に
   文字列として重複している。イメージ名を変える場合は3箇所すべての更新が必要
-- ECRにイメージをpushした後、実際にEC2上で新しいイメージが動くようにする部分
-  (pull&再起動の自動化)は別タスクとして残る
+- ECRへのイメージpushは手動トリガーのため、その後実際にEC2上で新しいイメージが
+  動くようにする部分(pull&再起動)も含め、デプロイ関連は当面手動の運用が前提となる

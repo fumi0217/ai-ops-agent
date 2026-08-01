@@ -145,10 +145,15 @@ installs only its own split requirements file (`requirements-light.txt` or
 - **`.github/workflows/terraform.yml`** — `terraform plan` on PRs touching `infra/**`
   (output goes to the job summary, not a PR comment), `terraform apply` on push to `main`.
   **`.github/workflows/docker-build.yml`** — builds all 3 images on PRs (no push, no AWS
-  creds needed); on push to `main`, also pushes to ECR tagged `<sha>` and `latest`. Both
-  authenticate via the same OIDC role (see [ADR-0011](docs/adr/0011-github-actions-oidc-cicd.md)).
+  creds needed); pushing to ECR (tagged `<sha>` and `latest`) is a manual
+  `workflow_dispatch` from `main`, not automatic on merge — this repo has no always-on
+  prod consumer, so trigger it by hand right before you actually want to deploy/demo.
+  Both authenticate via the same OIDC role (see [ADR-0011](docs/adr/0011-github-actions-oidc-cicd.md)).
   **Neither workflow deploys onto the EC2 instance** — pulling the new images and
-  restarting `docker-compose` there is still a manual step today.
+  restarting `docker-compose` there is still a manual step today (see
+  `docker-compose.prod.yml`'s top-of-file comment for the pull/up command; it's a
+  standalone file that references ECR images via `image:` instead of building
+  locally, not an override of `docker-compose.yml`).
 - Terraform is run locally the same way in both `infra/` and `infra/bootstrap/`:
   `docker run -it --rm -v "$(pwd):/opt" -w /opt --entrypoint ash hashicorp/terraform:latest`
   (no local Terraform install needed).

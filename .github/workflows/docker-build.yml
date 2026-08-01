@@ -16,21 +16,11 @@ on:
       - "frontend/**"
       - "docker-compose.yml"
       - ".github/workflows/docker-build.yml"
-  push:
-    branches: [main]
-    paths:
-      - "Dockerfile.light"
-      - "Dockerfile.rag"
-      - "requirements-light.txt"
-      - "requirements-rag.txt"
-      - "mock_services/**"
-      - "mcp_server/**"
-      - "chat/**"
-      - "scripts/**"
-      - "runbooks/**"
-      - "frontend/**"
-      - "docker-compose.yml"
-      - ".github/workflows/docker-build.yml"
+  # Manual only — this repo has no always-on production consumer for a
+  # fresh image on every merge. Trigger this by hand (from main) right
+  # before you actually want to deploy/demo, so ECR has a pre-built image
+  # ready to pull rather than building the heavy RAG image on the instance.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -62,9 +52,10 @@ jobs:
           file: ${{ matrix.dockerfile }}
           push: false
 
-  # main: build + push to ECR, tagged with the commit SHA and `latest`.
+  # Manual trigger only, and only from main: build + push to ECR, tagged
+  # with the commit SHA and `latest`.
   build-and-push:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       id-token: write
