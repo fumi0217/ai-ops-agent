@@ -1,0 +1,56 @@
+# 0011. GitHub ActionsのCI/CDにOIDC federationを採用
+
+## Context
+
+GitHub Actionsから`infra/`への`terraform apply`と、Dockerイメージのビルド・ECRへの
+pushを自動化したい。どちらもAWSへの認証が必要になる。
+
+## Decision
+
+長期のAWSアクセスキーをGitHub Secretsに置く方式ではなく、GitHub ActionsのOIDC
+federationを使う。GitHub側のOIDCプロバイダーをAWS IAMに登録し(`infra/bootstrap/iam.tf`)、
+ワークフロー実行のたびに短命なトークンでIAM roleをassumeする(`aws-actions/configure-aws-credentials`
+の`role-to-assume`)。静的なアクセスキーはリポジトリのどこにも存在しない。
+
+IAM roleは1つに集約し、`terraform.yml`(`infra/`のplan/apply)と`docker-build.yml`
+(Dockerイメージのビルド&push)の両方から使う。信頼ポリシーの`sub`条件は、このリポジトリの
+`ref:refs/heads/main`(mainブランチに紐づく実行 — push/workflow_dispatchいずれの
+トリガーでも、mainから実行される限り同じ`sub`クレームになる)と`pull_request`の
+2コンテキストのみに絞る(`pull_request`が必要なのは、`terraform.yml`のPRジョブが
+実際のAWS環境に対して`terraform plan`を実行し差分を見るため。`docker-build.yml`の
+PRジョブはビルドのみでこのroleを一切assumeしない)。単一リポジトリ・単一環境の
+ポートフォリオ規模でrole を2つに分ける実益がないため、権限の絞り込みはIAM policy側
+(EC2/ECR/S3の具体的なアクションのみ、`iam:*`は一切含まない)で行う。
+
+ECRリポジトリは`docker-compose.yml`が実際にビルドする3イメージ(`Dockerfile.light`/
+`Dockerfile.rag`/`frontend/Dockerfile`)にそれぞれ1つずつ、計3つ作る。
+`mock_services`と`chat_api`は同じ`Dockerfile.light`のイメージを`command`だけ変えて
+使っているため([ADR-0001](0001-service-split-and-docker-images.md))、
+サービス数(4)ではなくイメージ数(3)に合わせている。
+
+`docker-build.yml`はPRでは各Dockerfileのビルドのみ(push無し、AWS認証情報も要求しない)。
+ビルド+ECR pushは`workflow_dispatch`による手動トリガーで行う(mainからの実行に限定、
+`if: github.ref == 'refs/heads/main'`)。このリポジトリはポートフォリオ用で常時稼働する
+prod環境を持たないため、merge毎に自動でイメージを作り続けても消費者がいない。実際に
+EC2を起動してデモする直前などに手動で叩き、ECRに新しいイメージ(RAG依存を含む重い
+イメージも含む)を用意しておいてからpullする、という運用を想定している。`terraform.yml`は
+PRでは`terraform plan`のみ(結果は`$GITHUB_STEP_SUMMARY`に出力。PRコメントには
+しない — そのために`pull-requests: write`権限を追加で持たせずに済むため)、main pushで
+`apply`する(stateの整合性を保つため自動で実行する)。`infra/**`の変更を伴わない
+再apply(例: `TF_VAR_MY_IP`のローテーション)向けに、`workflow_dispatch`による
+手動実行にも対応している。
+
+**EC2上のdocker-composeを新しいイメージで更新する部分は、今回のスコープに含めない。**
+CIの責務は「手動トリガーでECRにイメージをpushできる状態を用意する」ところまでとし、
+実機への反映は当面手動とする。
+
+## Consequences
+
+- 静的なAWSアクセスキーがリポジトリ・GitHub Secretsのどこにも存在しない
+- IAM roleを1つに集約したことで、信頼ポリシー/policyの管理箇所は少ないが、
+  2つのワークフローの権限を分離できていない(現状のリスクの小ささでは許容範囲)
+- ECRリポジトリ名(`ai-ops-agent-{light,rag,frontend}`)は`infra/ecr.tf`・
+  `docker-build.yml`・`infra/bootstrap/iam.tf`のIAMポリシーのARNの3箇所に
+  文字列として重複している。イメージ名を変える場合は3箇所すべての更新が必要
+- ECRへのイメージpushは手動トリガーのため、その後実際にEC2上で新しいイメージが
+  動くようにする部分(pull&再起動)も含め、デプロイ関連は当面手動の運用が前提となる

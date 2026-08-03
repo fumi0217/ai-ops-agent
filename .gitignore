@@ -38,5 +38,23 @@ logs/
 .coverage
 htmlcov/
 
-# Streamlit
-.streamlit/secrets.toml
+# Terraform
+infra/.terraform/
+infra/bootstrap/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+infra/terraform.tfvars
+infra/bootstrap/terraform.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+# infra/.terraform.lock.hcl is intentionally NOT ignored — Terraform
+# recommends committing it for reproducible provider versions, and infra/
+# is applied repeatedly by CI, so that reproducibility matters there.
+# infra/bootstrap/ is applied once, locally, by hand (state stays local
+# too, never committed) — re-running it from scratch if ever needed isn't
+# sensitive to minor provider version drift, so its lock file isn't worth
+# tracking either.
+infra/bootstrap/.terraform.lock.hcl

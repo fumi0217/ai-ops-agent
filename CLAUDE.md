@@ -16,6 +16,11 @@ Likewise, never print/output the actual value of `GEMINI_API_KEY` (e.g. from a
 container's environment) — only check whether it's present/absent (e.g.
 `env | grep -q '^GEMINI_API_KEY='`).
 
+Same rule applies to AWS: never read/print real AWS credentials, and never commit
+`infra/terraform.tfvars` or `infra/bootstrap/terraform.tfvars` (only the `.example`
+files). CI authenticates via GitHub OIDC federation, not static AWS access keys — see
+[ADR-0011](docs/adr/0011-github-actions-oidc-cicd.md).
+
 ## Running it
 
 Requires a `.env` (copy from `.env.example`) with `GEMINI_API_KEY` set
@@ -122,6 +127,43 @@ installs only its own split requirements file (`requirements-light.txt` or
   startup (it drops and recreates the collection), so runbook content changes are
   picked up on the next `docker-compose up`/restart. Running the service locally
   (outside Docker) still requires re-running the script manually — see "Running it".
+
+## Infrastructure & CI/CD
+
+- **`infra/`** (Terraform) — a VPC + public subnet + security group (SSH/web allowed only
+  from a single `my_ip`) + one EC2 instance, plus 3 ECR repositories (one per actually-built
+  Docker image: `light`, `rag`, `frontend` — not one per docker-compose service, since
+  `mock_services`/`chat_api` share `Dockerfile.light`'s image). State lives in S3
+  (`backend "s3"`, native lockfile locking, no DynamoDB table — see
+  [ADR-0010](docs/adr/0010-terraform-state-bootstrap-split.md)).
+- **`infra/bootstrap/`** — a separate Terraform root (local state) that creates the
+  prerequisites `infra/` needs before CI can touch it at all: the S3 state bucket and the
+  GitHub Actions OIDC IAM role. This is the one thing in the whole repo that's applied
+  manually, once, with the repo owner's own AWS credentials — CI never runs it (chicken-
+  and-egg: CI can't assume a role that doesn't exist yet). See
+  [infra/bootstrap/README.md](infra/bootstrap/README.md).
+- **`.github/workflows/terraform.yml`** — `terraform plan` on PRs touching `infra/**`
+  (excluding `infra/bootstrap/**`, which this workflow never touches; output goes to the
+  job summary, not a PR comment), `terraform apply` on push to `main` **or** on a manual
+  `workflow_dispatch` from `main` (for a re-apply with no `infra/**` file change — e.g.
+  after rotating `TF_VAR_MY_IP`, since the push trigger only fires on an actual diff).
+  Passes `TF_VAR_ami` from the `AMI_ID` repo variable — left empty until pinned (see the
+  workflow's inline comment): `infra/main.tf` falls back to the latest Amazon Linux 2023
+  AMI when unset, which is fine for the very first apply but must be pinned afterwards,
+  since changing an `aws_instance`'s AMI forces a destroy+recreate.
+  **`.github/workflows/docker-build.yml`** — builds all 3 images on PRs (no push, no AWS
+  creds needed); pushing to ECR (tagged `<sha>` and `latest`) is a manual
+  `workflow_dispatch` from `main` — this repo has no always-on prod consumer, so trigger
+  it by hand right before you actually want to deploy/demo.
+  Both authenticate via the same OIDC role (see [ADR-0011](docs/adr/0011-github-actions-oidc-cicd.md)).
+  **Neither workflow deploys onto the EC2 instance** — pulling the new images and
+  restarting `docker-compose` there is still a manual step today (see
+  `docker-compose.prod.yml`'s top-of-file comment for the pull/up command; it's a
+  standalone file that references ECR images via `image:` instead of building
+  locally, not an override of `docker-compose.yml`).
+- Terraform is run locally the same way in both `infra/` and `infra/bootstrap/`:
+  `docker run -it --rm -v "$(pwd):/opt" -w /opt --entrypoint ash hashicorp/terraform:latest`
+  (no local Terraform install needed).
 
 ## Development workflow
 

@@ -1,0 +1,74 @@
+# Production-style compose file — pulls pre-built images from ECR instead of
+# building locally on the instance. A standalone file rather than a
+# docker-compose.yml override, since Compose's merge behavior when a service
+# defines both `build` and `image` (it builds and tags, it doesn't just pull)
+# isn't what we want here.
+#
+# Images are pushed by .github/workflows/docker-build.yml's manual
+# workflow_dispatch trigger (see docs/adr/0011-github-actions-oidc-cicd.md) —
+# there's no always-on prod consumer in this repo, so run that workflow by
+# hand before pulling here.
+#
+# Usage on the target instance:
+#   export ECR_REGISTRY=<account_id>.dkr.ecr.<region>.amazonaws.com
+#   aws ecr get-login-password --region <region> | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+#   docker compose -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Requires the same .env (GEMINI_API_KEY) as docker-compose.yml, placed
+# alongside this file — see .env.example.
+#
+# Unlike docker-compose.yml, only frontend's port is published to the host —
+# mock_services/mcp_server/chat_api are internal-only by design (see
+# CLAUDE.md's Architecture section); dev publishes all of them for local
+# curl/debugging convenience, which isn't needed here.
+
+services:
+  mock_services:
+    image: ${ECR_REGISTRY:?ECR_REGISTRY must be set, e.g. <account_id>.dkr.ecr.<region>.amazonaws.com}/ai-ops-agent-light:${IMAGE_TAG:-latest}
+    command: uvicorn mock_services.app:app --host 0.0.0.0 --port 8002
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/services')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  mcp_server:
+    image: ${ECR_REGISTRY:?ECR_REGISTRY must be set, e.g. <account_id>.dkr.ecr.<region>.amazonaws.com}/ai-ops-agent-rag:${IMAGE_TAG:-latest}
+    command: sh -c "python -m scripts.index_runbooks && uvicorn mcp_server.server:mcp.streamable_http_app --factory --host 0.0.0.0 --port 8001"
+    environment:
+      - MOCK_SERVICES_URL=http://mock_services:8002
+    depends_on:
+      mock_services:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('localhost', 8001), timeout=3).close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  chat_api:
+    image: ${ECR_REGISTRY:?ECR_REGISTRY must be set, e.g. <account_id>.dkr.ecr.<region>.amazonaws.com}/ai-ops-agent-light:${IMAGE_TAG:-latest}
+    command: uvicorn chat.api:app --host 0.0.0.0 --port 8003
+    env_file: .env
+    environment:
+      - MCP_SERVER_URL=http://mcp_server:8001
+    depends_on:
+      mcp_server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    image: ${ECR_REGISTRY:?ECR_REGISTRY must be set, e.g. <account_id>.dkr.ecr.<region>.amazonaws.com}/ai-ops-agent-frontend:${IMAGE_TAG:-latest}
+    ports:
+      - "8000:3000"
+    environment:
+      - CHAT_API_URL=http://chat_api:8003
+    depends_on:
+      chat_api:
+        condition: service_healthy
