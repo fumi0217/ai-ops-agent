@@ -11,7 +11,7 @@
 - **UI**: Next.js（App Router, TypeScript）+ Tailwind CSS + shadcn/ui
 - **RAG**: LlamaIndex + ChromaDB（ベクトルストア）+ sentence-transformers（`all-MiniLM-L6-v2`）
 - **HTTPクライアント**: httpx（Python側）/ fetch（Next.js Route Handler）
-- **インフラ**: Docker / docker-compose
+- **インフラ**: Docker / docker-compose / Terraform（AWS: VPC・EC2・ECR）/ GitHub Actions（OIDC連携によるCI/CD）
 
 ## 特徴
 
@@ -114,10 +114,21 @@ sequenceDiagram
 ### Dockerで起動する場合
 
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
 `mcp_server`は起動のたびにランブックの索引を再構築するため、事前準備は不要です。起動後、ブラウザで `http://localhost:8000` を開きます。
+
+### ECR上のイメージで起動する場合(EC2など本番相当の環境)
+
+```bash
+export ECR_REGISTRY=<account_id>.dkr.ecr.<region>.amazonaws.com
+aws ecr get-login-password --region <region> | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+```
+
+ローカルビルドではなく、`.github/workflows/docker-build.yml`の手動`workflow_dispatch`でECRにpush済みのイメージを使います（詳細は[インフラ/デプロイ](#インフラデプロイ)を参照）。同じ`.env`（`GEMINI_API_KEY`）が必要です。
 
 ### ローカルで起動する場合
 

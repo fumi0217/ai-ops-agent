@@ -22,6 +22,9 @@ resource "aws_instance" "this" {
         sudo systemctl start docker
         sudo usermod -aG docker ec2-user
         sudo dnf install -y git
+        sudo mkdir -p /usr/local/lib/docker/cli-plugins
+        sudo curl -SL https://github.com/docker/compose/releases/download/v2.29.7/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose
+        sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
         EOF
   root_block_device {
     volume_size           = 30

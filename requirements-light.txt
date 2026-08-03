@@ -2,7 +2,10 @@
 google-genai>=1.0.0
 
 # MCP
-mcp[cli]>=1.0.0
+# <2 pin: mcp 2.0.0 renamed FastMCP to MCPServer and reworked the server API
+# (upstream v1.x is maintenance-mode-only; see modelcontextprotocol/python-sdk
+# release notes), which this codebase isn't written against.
+mcp[cli]>=1.0.0,<2
 
 # Web framework (mock_services + chat API, MCP client transport)
 fastapi>=0.115.0
