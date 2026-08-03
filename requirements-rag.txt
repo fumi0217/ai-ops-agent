@@ -1,5 +1,8 @@
 # MCP
-mcp[cli]>=1.0.0
+# <2 pin: mcp 2.0.0 renamed FastMCP to MCPServer and reworked the server API
+# (upstream v1.x is maintenance-mode-only; see modelcontextprotocol/python-sdk
+# release notes), which this codebase isn't written against.
+mcp[cli]>=1.0.0,<2
 
 # Web framework (MCP server transport + proxy calls to mock_services)
 uvicorn[standard]>=0.32.0
