@@ -114,7 +114,7 @@ sequenceDiagram
 ### Dockerで起動する場合
 
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
 `mcp_server`は起動のたびにランブックの索引を再構築するため、事前準備は不要です。起動後、ブラウザで `http://localhost:8000` を開きます。

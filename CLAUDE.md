@@ -29,7 +29,7 @@ Requires a `.env` (copy from `.env.example`) with `GEMINI_API_KEY` set
 ```bash
 # All four services via Docker — mcp_server rebuilds the RAG index on every
 # startup (see docker-compose.yml), so no manual indexing step is needed here.
-docker-compose up --build
+docker compose up --build
 ```
 
 Or run each service locally (in separate terminals, in this order; `frontend` also
@@ -125,7 +125,7 @@ installs only its own split requirements file (`requirements-light.txt` or
   restart) that get chunked/embedded by `scripts/index_runbooks.py` into `chroma_db/`.
   `docker-compose.yml`'s `mcp_server` command runs this script on every container
   startup (it drops and recreates the collection), so runbook content changes are
-  picked up on the next `docker-compose up`/restart. Running the service locally
+  picked up on the next `docker compose up`/restart. Running the service locally
   (outside Docker) still requires re-running the script manually — see "Running it".
 
 ## Infrastructure & CI/CD
