@@ -28,11 +28,16 @@ resource-level認可ができないため`Resource: "*"`)で、`ec2:*Manage`系�
 アクションは一切含めない — このロールはコンテナから到達可能なため、read-onlyであることが
 重要。
 
-インスタンスの特定には、コンテナから直接IMDS(`169.254.169.254`)を叩く方式ではなく
-`ec2:DescribeInstances`を`tag:Name = ai-ops-agent-server`でフィルタする方式を選んだ。
+インスタンスの特定には、`ec2:DescribeInstances`を`tag:Name = ai-ops-agent-server`で
+フィルタする方式にした(単一インスタンス構成なのでこれで自分自身を一意に特定できる)。
+
 EC2のIMDSはデフォルトで`HttpPutResponseHopLimit = 1`になっており、Dockerコンテナ内から
-のアクセスはブリッジネットワーク越しの追加ホップとしてブロックされる設計になっている
-(このホップ制限を緩めるのはセキュリティ上の後退になるため避けた)。
+のアクセスはブリッジネットワーク越しの追加ホップとしてブロックされる。boto3がIAMロールの
+一時クレデンシャルを取得する経路もこのIMDS経由のため、ここを許可しないと
+`get_ec2_host_metrics`はコンテナ内からAWS認証情報を一切取得できずツールとして機能しない。
+そのため`infra/ec2.tf`の`metadata_options`で`http_put_response_hop_limit = 2`(コンテナが
+到達するのに必要な1ホップ分だけ)に設定した。`http_tokens = "required"`(IMDSv2必須)は
+維持しており、古いIMDSv1のSSRFリスクを再度開けることはない。
 
 `infra/`が初めてIAMリソースを管理することになるため、`infra/bootstrap/iam.tf`の
 GitHub Actions用IAMポリシーにも、この特定のロール/instance profile ARNに絞った

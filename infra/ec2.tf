@@ -32,6 +32,15 @@ resource "aws_instance" "this" {
     volume_type           = "gp3"
     delete_on_termination = true
   }
+  # http_put_response_hop_limit defaults to 1, which blocks IMDS access from
+  # inside Docker containers (bridge network adds a hop) — boto3 needs IMDS
+  # to fetch the instance profile's credentials (get_ec2_host_metrics).
+  # 2 is the minimum that allows that one extra hop; http_tokens stays
+  # "required" (IMDSv2 only) so this doesn't reopen the classic IMDSv1 SSRF risk.
+  metadata_options {
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+  }
   tags = {
     Name = "ai-ops-agent-server"
   }
