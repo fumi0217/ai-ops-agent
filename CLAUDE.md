@@ -91,7 +91,13 @@ installs only its own split requirements file (`requirements-light.txt` or
   (`Dockerfile.light`) — see `docker-compose.yml`.
   `TransportSecuritySettings` in `server.py` allowlists the `mcp_server` hostname (in
   addition to localhost) since the `chat_api` container reaches it as
-  `http://mcp_server:8001` under Docker.
+  `http://mcp_server:8001` under Docker. `get_ec2_host_metrics`
+  (`mcp_server/tools/aws_metrics.py`) is the one tool backed by a real (not simulated)
+  data source: it calls AWS CloudWatch directly via boto3 — no `mock_services` HTTP call
+  involved — using the EC2 instance's IAM role (`infra/iam.tf`) rather than static
+  credentials, and self-identifies the instance via `ec2:DescribeInstances` filtered by
+  the `Name` tag (not IMDS — containers can't reach it past the default hop limit). See
+  [ADR-0012](docs/adr/0012-cloudwatch-ec2-host-metrics.md).
 - **`chat/`** (port 8003, FastAPI, internal-only — not reachable from the browser) — the
   agent loop and its HTTP API.
   - `chat/engine.py` is the core: it converts MCP tool schemas to Gemini
@@ -135,13 +141,21 @@ installs only its own split requirements file (`requirements-light.txt` or
   Docker image: `light`, `rag`, `frontend` — not one per docker-compose service, since
   `mock_services`/`chat_api` share `Dockerfile.light`'s image). State lives in S3
   (`backend "s3"`, native lockfile locking, no DynamoDB table — see
-  [ADR-0010](docs/adr/0010-terraform-state-bootstrap-split.md)).
+  [ADR-0010](docs/adr/0010-terraform-state-bootstrap-split.md)). `infra/iam.tf` is the
+  one IAM resource `infra/` manages: an EC2-trusted role + instance profile
+  (`aws_iam_instance_profile.ec2_cloudwatch_read`, attached to the instance via
+  `iam_instance_profile` in `ec2.tf`) scoped to just `ec2:DescribeInstances` and
+  `cloudwatch:GetMetricStatistics`, backing `get_ec2_host_metrics` — see
+  [ADR-0012](docs/adr/0012-cloudwatch-ec2-host-metrics.md).
 - **`infra/bootstrap/`** — a separate Terraform root (local state) that creates the
   prerequisites `infra/` needs before CI can touch it at all: the S3 state bucket and the
   GitHub Actions OIDC IAM role. This is the one thing in the whole repo that's applied
   manually, once, with the repo owner's own AWS credentials — CI never runs it (chicken-
-  and-egg: CI can't assume a role that doesn't exist yet). See
-  [infra/bootstrap/README.md](infra/bootstrap/README.md).
+  and-egg: CI can't assume a role that doesn't exist yet). Because `infra/` now manages
+  the IAM role/instance profile above, `infra/bootstrap/iam.tf`'s CI policy also grants
+  scoped `iam:CreateRole`/`PutRolePolicy`/etc. (and a conditioned `iam:PassRole` to
+  `ec2.amazonaws.com`) limited to that specific role/instance-profile ARN — not blanket
+  `iam:*`. See [infra/bootstrap/README.md](infra/bootstrap/README.md).
 - **`.github/workflows/terraform.yml`** — `terraform plan` on PRs touching `infra/**`
   (excluding `infra/bootstrap/**`, which this workflow never touches; output goes to the
   job summary, not a PR comment), `terraform apply` on push to `main` **or** on a manual

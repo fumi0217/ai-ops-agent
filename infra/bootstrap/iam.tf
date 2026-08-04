@@ -131,9 +131,44 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     ]
   }
 
-  # Deliberately no iam:* actions at all — infra/ doesn't manage any IAM
-  # resources today (no instance profile on the EC2 instance). If that
-  # changes, this policy needs a scoped iam:PassRole addition then, not before.
+  # infra/'s only IAM resource: the EC2 instance's CloudWatch-read role +
+  # instance profile (see infra/iam.tf). Scoped to those two resource names
+  # specifically, not iam:* — this role must not be able to manage arbitrary
+  # IAM resources, including its own.
+  statement {
+    sid    = "Ec2CloudwatchReadRoleManage"
+    effect = "Allow"
+    actions = [
+      "iam:CreateRole", "iam:DeleteRole", "iam:GetRole", "iam:UpdateAssumeRolePolicy",
+      "iam:TagRole", "iam:UntagRole",
+      "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:GetRolePolicy",
+    ]
+    resources = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/ai-ops-agent-ec2-cloudwatch-read"]
+  }
+
+  statement {
+    sid    = "Ec2CloudwatchReadInstanceProfileManage"
+    effect = "Allow"
+    actions = [
+      "iam:CreateInstanceProfile", "iam:DeleteInstanceProfile", "iam:GetInstanceProfile",
+      "iam:AddRoleToInstanceProfile", "iam:RemoveRoleFromInstanceProfile",
+      "iam:TagInstanceProfile", "iam:UntagInstanceProfile",
+    ]
+    resources = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:instance-profile/ai-ops-agent-ec2-cloudwatch-read"]
+  }
+
+  statement {
+    sid       = "PassEc2CloudwatchReadRoleToEc2"
+    effect    = "Allow"
+    actions   = ["iam:PassRole"]
+    resources = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/ai-ops-agent-ec2-cloudwatch-read"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["ec2.amazonaws.com"]
+    }
+  }
 }
 
 resource "aws_iam_policy" "github_actions" {

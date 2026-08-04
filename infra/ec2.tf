@@ -7,6 +7,7 @@ resource "aws_instance" "this" {
   ami                         = local.ami
   associate_public_ip_address = true
   availability_zone           = local.availability_zone
+  iam_instance_profile        = aws_iam_instance_profile.ec2_cloudwatch_read.name
   instance_type               = "t3.medium"
   key_name                    = local.key_name
   placement_group             = null

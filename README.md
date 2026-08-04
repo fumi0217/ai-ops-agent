@@ -25,7 +25,7 @@
 4つのサービスで構成されています（`docker-compose.yml`で連携）。
 
 - **`mock_services`**（FastAPI, port 8002）: 実際の運用対象に見立てたモックバックエンド。5サービス分のメトリクス・ログ・アラートをインメモリで保持し、再起動・スケール変更のリクエストを受け付けます。
-- **`mcp_server`**（FastMCP, port 8001）: 運用操作をMCPツールとして公開するサーバー。読み取り系ツール（`list_services` / `get_metrics` / `get_health` / `get_logs` / `get_alerts`）と`mock_services`へのHTTP経由の操作系ツール（`restart_service` / `scale_service`）、そしてChromaDBを使ったランブック検索ツール（`search_runbook`）を提供します。
+- **`mcp_server`**（FastMCP, port 8001）: 運用操作をMCPツールとして公開するサーバー。読み取り系ツール（`list_services` / `get_metrics` / `get_health` / `get_logs` / `get_alerts`）と`mock_services`へのHTTP経由の操作系ツール（`restart_service` / `scale_service`）、そしてChromaDBを使ったランブック検索ツール（`search_runbook`）を提供します。唯一`get_ec2_host_metrics`だけは`mock_services`を介さず、EC2インスタンスのIAMロール経由でAWS CloudWatchから実際のホストCPU使用率を取得します（[ADR-0012](docs/adr/0012-cloudwatch-ec2-host-metrics.md)）。
 - **`chat_api`**（FastAPI, port 8003, 内部専用）: エージェントのループ本体(`chat/engine.py`)を薄いHTTP APIとして公開するバックエンド。`POST /chat` / `POST /chat/confirm`でGemini 2.5 FlashにMCPツールのスキーマを渡してエージェンティックループを回し、破壊的操作が要求された場合は`pending_action`を返してフロントエンドに確認を委ねます。ブラウザから直接は呼ばれません。
 - **`frontend`**（Next.js, port 8000）: オペレーターが操作するUI本体。App RouterのRoute Handlerが内部Dockerネットワーク経由で`chat_api`を呼び出すプロキシとして機能するため、ブラウザは`chat_api`の存在を意識しません。会話履歴はサーバー側セッションを持たず、クライアント(ブラウザ)側で保持して毎リクエスト送受信します（[ADR-0009](docs/adr/0009-stateless-chat-api.md)）。
 

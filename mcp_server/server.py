@@ -8,6 +8,7 @@ Run with:
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
+from mcp_server.tools.aws_metrics import get_ec2_host_metrics as _get_ec2_host_metrics
 from mcp_server.tools.logs import get_logs as _get_logs
 from mcp_server.tools.metrics import (
     get_alerts as _get_alerts,
@@ -84,6 +85,20 @@ def get_logs(service_name: str, lines: int = 30, level: str = "all") -> dict:
 def get_alerts() -> dict:
     """Get all active alerts across services, ordered by severity."""
     return _get_alerts()
+
+
+@mcp.tool()
+def get_ec2_host_metrics(minutes: int = 15) -> dict:
+    """
+    Get real CPU utilization for the EC2 host instance itself, from AWS
+    CloudWatch — distinct from the simulated per-service metrics returned
+    by get_metrics. Use this when asked about the underlying server/host,
+    not a specific microservice.
+
+    Args:
+        minutes: How many minutes of history to look back over (1-1440).
+    """
+    return _get_ec2_host_metrics(minutes)
 
 
 @mcp.tool()
