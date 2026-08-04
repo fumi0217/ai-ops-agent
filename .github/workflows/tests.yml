@@ -1,0 +1,40 @@
+name: Tests
+
+on:
+  pull_request:
+    paths:
+      - "chat/**"
+      - "tests/**"
+      - "requirements-light.txt"
+      - "requirements-dev.txt"
+      - "pytest.ini"
+      - ".github/workflows/tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "chat/**"
+      - "tests/**"
+      - "requirements-light.txt"
+      - "requirements-dev.txt"
+      - "pytest.ini"
+      - ".github/workflows/tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # requirements-light.txt, not -rag.txt — chat/engine.py (the only thing
+      # under test) doesn't touch the RAG stack, and installing torch et al.
+      # here would only slow this job down for no coverage benefit.
+      - run: pip install -r requirements-light.txt -r requirements-dev.txt
+
+      - run: pytest tests/ -v

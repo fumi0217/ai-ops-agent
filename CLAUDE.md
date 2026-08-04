@@ -52,8 +52,15 @@ npm install
 CHAT_API_URL=http://localhost:8003 npm run dev               # UI
 ```
 
-There is no test suite or linter configured for the Python services in this repo
-(`frontend` has `next lint`/`next build`'s TypeScript check, but no test suite either).
+There is no linter configured for the Python services in this repo (`frontend` has
+`next lint`/`next build`'s TypeScript check). Test coverage is partial and scoped to
+`chat/engine.py` (see `tests/` and [ADR-0012](docs/adr/0012-pytest-for-chat-engine.md)
+for why); nothing else has tests.
+
+```bash
+pip install -r requirements-light.txt -r requirements-dev.txt
+pytest tests/ -v
+```
 
 ## Architecture
 
@@ -103,7 +110,9 @@ installs only its own split requirements file (`requirements-light.txt` or
     turn, they execute immediately and their responses are held in the pending action's
     `sibling_responses` until confirmation. `resume_after_confirmation_async` re-enters the
     loop after the operator approves/denies, merging `sibling_responses` with the mutating
-    tool's own response into one Gemini turn.
+    tool's own response into one Gemini turn. This logic is covered by
+    `tests/test_chat_engine.py`, with the Gemini client and MCP session faked in
+    `tests/conftest.py` (see [ADR-0012](docs/adr/0012-pytest-for-chat-engine.md)).
   - `chat/engine.py` is intentionally UI-framework-agnostic: it takes a `messages` list
     (the raw **Gemini content format**, `{"role": "user"|"model", "parts": [...]}`) and
     returns an updated one — no server-side session state. `chat/api.py` is a thin FastAPI
