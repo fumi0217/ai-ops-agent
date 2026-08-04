@@ -61,3 +61,11 @@ IAM管理アクション(`iam:CreateRole`等)と、`iam:PassedToService = ec2.am
   スコープ済みの`iam:PassRole`を含む新しい権限を追加する必要があり、
   ユーザーが手動で`infra/bootstrap/`を再applyしない限りCIはこの`infra/`の変更を
   適用できない
+- **既知の限界**: `get_metrics(metric_type='cpu')`(mockのシミュレーション値)と
+  `get_ec2_host_metrics`(実際のCloudWatch値)は、どちらも「CPU」という同じ概念に対して
+  別々の値を返す。5サービスの障害シナリオはmock側の数値にしか仕込まれていないため、
+  「サーバーの状況を見て」のような曖昧な指示でエージェントがホスト側の実CPUを返すと、
+  シナリオ上のCPU値と矛盾して見える可能性がある。今回は「read-onlyな実データソースを
+  1つ追加できることを示す」までをスコープとし、この意味的な競合の解消(例:
+  シミュレーション側に対応概念のない指標 — `StatusCheckFailed`など — への差し替え)は
+  今回は行わず、将来の検討事項として残す
