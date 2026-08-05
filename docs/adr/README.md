@@ -19,6 +19,7 @@
 | [0009](0009-stateless-chat-api.md) | chat APIはステートレス、フロントエンドがプロキシする |
 | [0010](0010-terraform-state-bootstrap-split.md) | Terraform stateのS3化とbootstrap rootの分離 |
 | [0011](0011-github-actions-oidc-cicd.md) | GitHub ActionsのCI/CDにOIDC federationを採用 |
+| [0013](0013-no-app-level-auth.md) | アプリケーション層の認証・認可は導入しない |
 
 ## フォーマット
 
