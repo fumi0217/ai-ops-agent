@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { CHAT_API_URL } from "@/lib/config";
 
+// See app/api/chat/route.ts's comment — same streaming pass-through pattern.
 export async function POST(req: NextRequest) {
   const body = await req.json();
 
@@ -10,9 +11,15 @@ export async function POST(req: NextRequest) {
     body: JSON.stringify(body),
   });
 
-  const data = await resp.json();
-  if (!resp.ok) {
-    return NextResponse.json({ error: data.detail ?? "予期しないエラーが発生しました。" }, { status: resp.status });
+  if (!resp.ok || !resp.body) {
+    const data = await resp.json().catch(() => ({}));
+    return NextResponse.json(
+      { error: data.detail ?? "予期しないエラーが発生しました。" },
+      { status: resp.status || 502 }
+    );
   }
-  return NextResponse.json(data);
+
+  return new NextResponse(resp.body, {
+    headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
+  });
 }

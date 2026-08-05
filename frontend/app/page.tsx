@@ -1,31 +1,63 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { isDisplayMessage } from "@/lib/isDisplayMessage";
-import type { ChatResponse, Message, PendingAction } from "@/lib/types";
+import { readEventStream } from "@/lib/readEventStream";
+import type { Message, PendingAction, ToolCallEvent } from "@/lib/types";
+
+function applyToolCallEvent(prev: ToolCallEvent[], event: ToolCallEvent): ToolCallEvent[] {
+  if (event.phase === "start") return [...prev, event];
+  // "end": tool calls execute one at a time (see chat/engine.py's agentic
+  // loop), so the most recent entry is always the one this completes.
+  return prev.map((t, i) => (i === prev.length - 1 ? event : t));
+}
 
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [activeTools, setActiveTools] = useState<ToolCallEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [input, setInput] = useState("");
 
-  async function postJson(url: string, body: unknown): Promise<ChatResponse> {
-    const resp = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const data = await resp.json();
-    if (!resp.ok) {
-      throw new Error(data.error ?? "予期しないエラーが発生しました。");
+  // Runs one streamed turn against `url`, updating messages/pendingAction
+  // from the terminal `final` event and activeTools from each `tool_call`
+  // event as it arrives — this is what shows the agent's MCP tool calls in
+  // real time while it's still "thinking" (see ADR-0014).
+  async function streamTurn(url: string, body: unknown) {
+    setActiveTools([]);
+    setError(null);
+    setLoading(true);
+    try {
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok || !resp.body) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.error ?? "予期しないエラーが発生しました。");
+      }
+      for await (const event of readEventStream(resp)) {
+        if (event.type === "tool_call") {
+          setActiveTools((prev) => applyToolCallEvent(prev, event));
+        } else if (event.type === "final") {
+          setMessages(event.messages);
+          setPendingAction(event.pending_action);
+        } else if (event.type === "error") {
+          throw new Error(event.detail);
+        }
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
     }
-    return data as ChatResponse;
   }
 
   async function handleSend() {
@@ -35,47 +67,28 @@ export default function Home() {
     const nextMessages: Message[] = [...messages, { role: "user", parts: [{ text }] }];
     setMessages(nextMessages);
     setInput("");
-    setError(null);
-    setLoading(true);
-    try {
-      const data = await postJson("/api/chat", { messages: nextMessages });
-      setMessages(data.messages);
-      setPendingAction(data.pending_action);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
+    await streamTurn("/api/chat", { messages: nextMessages });
   }
 
   async function handleConfirm(confirmed: boolean) {
     if (!pendingAction) return;
     const action = pendingAction;
     setPendingAction(null);
-    setError(null);
-    setLoading(true);
-    try {
-      const data = await postJson("/api/chat/confirm", {
-        messages,
-        pending_action: action,
-        confirmed,
-      });
-      setMessages(data.messages);
-      setPendingAction(data.pending_action);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
+    await streamTurn("/api/chat/confirm", { messages, pending_action: action, confirmed });
   }
 
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-4 p-6">
-      <header className="border-b pb-4">
-        <h1 className="text-2xl font-bold">🤖 AI Ops Agent</h1>
-        <p className="text-sm text-muted-foreground">
-          チャットで運用作業を自動化 | Powered by Gemini 2.5 Flash + MCP
-        </p>
+      <header className="flex items-start justify-between border-b pb-4">
+        <div>
+          <h1 className="text-2xl font-bold">🤖 AI Ops Agent</h1>
+          <p className="text-sm text-muted-foreground">
+            チャットで運用作業を自動化 | Powered by Gemini 2.5 Flash + MCP
+          </p>
+        </div>
+        <Link href="/audit" className="whitespace-nowrap text-sm text-muted-foreground underline">
+          監査ログ →
+        </Link>
       </header>
 
       <div className="flex flex-1 flex-col gap-3">
@@ -95,7 +108,17 @@ export default function Home() {
             </div>
           );
         })}
-        {loading && <p className="text-sm text-muted-foreground">考えています...</p>}
+        {loading && (
+          <div className="space-y-1 text-sm text-muted-foreground">
+            <p>考えています...</p>
+            {activeTools.map((t, i) => (
+              <p key={i}>
+                {t.phase === "start" ? "🔧" : t.is_error ? "❌" : "✅"} {t.label}
+                {t.phase === "start" ? " 実行中..." : t.is_error ? " 失敗" : " 完了"}
+              </p>
+            ))}
+          </div>
+        )}
       </div>
 
       {error && (

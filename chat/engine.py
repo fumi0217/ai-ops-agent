@@ -21,6 +21,7 @@ from google.genai import types
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 
+from chat import audit
 from chat.config import GEMINI_API_KEY, MCP_SERVER_URL
 
 MODEL = "gemini-2.5-flash"
@@ -152,11 +153,21 @@ def is_display_message(msg: dict) -> tuple[bool, str, str]:
 # MCP tool executor
 # ---------------------------------------------------------------------------
 
-async def _call_mcp_tool(session: ClientSession, name: str, args: dict) -> tuple[str, bool]:
+async def _call_mcp_tool(
+    session: ClientSession,
+    name: str,
+    args: dict,
+    on_tool_call: Callable[[dict], None] | None = None,
+) -> tuple[str, bool]:
+    if on_tool_call:
+        on_tool_call({"phase": "start", "tool_name": name, "tool_input": args})
     result = await session.call_tool(name, arguments=args)
     parts = [b.text for b in result.content if hasattr(b, "text")]
     text = "\n".join(parts) if parts else "(no result)"
-    return text, bool(result.isError)
+    is_error = bool(result.isError)
+    if on_tool_call:
+        on_tool_call({"phase": "end", "tool_name": name, "tool_input": args, "is_error": is_error})
+    return text, is_error
 
 
 # ---------------------------------------------------------------------------
@@ -169,6 +180,7 @@ async def _agentic_loop(
     genai_tools: list[types.FunctionDeclaration],
     messages: list[dict],
     on_pending_action: Callable,
+    on_tool_call: Callable[[dict], None] | None = None,
 ) -> tuple[list[dict], str]:
     """
     Run the Gemini agentic loop.
@@ -190,7 +202,10 @@ async def _agentic_loop(
         )
 
         candidate = response.candidates[0]
-        raw_parts = candidate.content.parts
+        # Gemini can return a content with no parts at all (observed with
+        # finish_reason STOP and an otherwise-empty turn) — .parts is then
+        # None, not [], so this can't be skipped.
+        raw_parts = candidate.content.parts or []
 
         # Split into text and function calls
         text_parts = [p.text for p in raw_parts if p.text]
@@ -231,7 +246,7 @@ async def _agentic_loop(
                     }
                 })
                 continue
-            text, is_error = await _call_mcp_tool(session, fc.name, dict(fc.args))
+            text, is_error = await _call_mcp_tool(session, fc.name, dict(fc.args), on_tool_call)
             fn_response_parts.append({
                 "function_response": {
                     "name": fc.name,
@@ -257,6 +272,7 @@ async def _agentic_loop(
 async def run_conversation_async(
     messages: list[dict],
     on_pending_action: Callable,
+    on_tool_call: Callable[[dict], None] | None = None,
 ) -> tuple[list[dict], str]:
     """Run one conversation turn. Returns (updated_messages, last_assistant_text)."""
     client = genai.Client(api_key=GEMINI_API_KEY)
@@ -265,7 +281,9 @@ async def run_conversation_async(
             await session.initialize()
             tools_result = await session.list_tools()
             genai_tools = [_mcp_tool_to_genai(t) for t in tools_result.tools]
-            return await _agentic_loop(client, session, genai_tools, messages, on_pending_action)
+            return await _agentic_loop(
+                client, session, genai_tools, messages, on_pending_action, on_tool_call
+            )
 
 
 async def resume_after_confirmation_async(
@@ -273,6 +291,7 @@ async def resume_after_confirmation_async(
     pending_action: dict,
     confirmed: bool,
     on_pending_action: Callable,
+    on_tool_call: Callable[[dict], None] | None = None,
 ) -> tuple[list[dict], str]:
     """
     Resume after operator confirms or denies a mutating operation.
@@ -292,7 +311,15 @@ async def resume_after_confirmation_async(
 
             if confirmed:
                 text, is_error = await _call_mcp_tool(
-                    session, pending_action["tool_name"], pending_action["tool_input"]
+                    session, pending_action["tool_name"], pending_action["tool_input"], on_tool_call
+                )
+                # Audit only actually-executed mutating operations — a denied
+                # confirmation never reaches this branch, so it's never logged.
+                audit.record(
+                    tool_name=pending_action["tool_name"],
+                    tool_input=pending_action["tool_input"],
+                    is_error=is_error,
+                    result=text,
                 )
                 fn_response = {
                     "function_response": {
@@ -310,4 +337,6 @@ async def resume_after_confirmation_async(
 
             fn_response_parts = pending_action.get("sibling_responses", []) + [fn_response]
             messages.append({"role": "user", "parts": fn_response_parts})
-            return await _agentic_loop(client, session, genai_tools, messages, on_pending_action)
+            return await _agentic_loop(
+                client, session, genai_tools, messages, on_pending_action, on_tool_call
+            )
