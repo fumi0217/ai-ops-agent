@@ -59,11 +59,16 @@ def test_describe_error_unknown_exception_falls_back_to_generic_message():
 
 
 def test_json_schema_to_genai_converts_nested_object_and_required():
+    # level/tags は現状どのMCPツールも使っていない型(enum/array)だが、
+    # _json_schema_to_genai は汎用のJSON Schema変換として書かれているので、
+    # 将来Literal型やlist型のパラメータを持つツールが増えても壊れないことを確認する。
     schema = {
         "type": "object",
         "properties": {
             "service_name": {"type": "string", "description": "対象サービス名"},
             "replicas": {"type": "integer"},
+            "level": {"type": "string", "enum": ["info", "warning", "error"]},
+            "tags": {"type": "array", "items": {"type": "string"}},
         },
         "required": ["service_name"],
     }
@@ -71,7 +76,11 @@ def test_json_schema_to_genai_converts_nested_object_and_required():
 
     assert result.type == genai_types.Type.OBJECT
     assert result.properties["service_name"].type == genai_types.Type.STRING
+    assert result.properties["service_name"].description == "対象サービス名"
     assert result.properties["replicas"].type == genai_types.Type.INTEGER
+    assert result.properties["level"].enum == ["info", "warning", "error"]
+    assert result.properties["tags"].type == genai_types.Type.ARRAY
+    assert result.properties["tags"].items.type == genai_types.Type.STRING
     assert result.required == ["service_name"]
 
 
@@ -80,6 +89,7 @@ def test_mcp_tool_to_genai_without_properties_has_no_parameters():
     decl = engine._mcp_tool_to_genai(tool)
 
     assert decl.name == "list_services"
+    assert decl.description == "一覧を返す"
     assert decl.parameters is None
 
 
@@ -95,6 +105,7 @@ def test_mcp_tool_to_genai_with_properties_builds_parameters():
     )
     decl = engine._mcp_tool_to_genai(tool)
 
+    assert decl.description == "再起動する"
     assert decl.parameters.type == genai_types.Type.OBJECT
     assert "service_name" in decl.parameters.properties
 
@@ -171,13 +182,20 @@ async def test_non_mutating_tool_call_executes_immediately_and_loop_continues(mo
     mock_session.call_tool.assert_awaited_once_with(
         "get_metrics", arguments={"service_name": "payment-service"}
     )
+    assert mock_client.aio.models.generate_content.await_count == 2
     # result_messages: [0] original user text, [1] model's function_call turn,
-    # [2] the function_response turn we're checking, [3] model's final text turn.
+    # [2] the function_response turn, [3] model's final text turn.
+    assert len(result_messages) == 4
+    assert result_messages[1] == {
+        "role": "model",
+        "parts": [{"function_call": {"name": "get_metrics", "args": {"service_name": "payment-service"}}}],
+    }
     tool_turn = result_messages[2]
     assert tool_turn == {
         "role": "user",
         "parts": [{"function_response": {"name": "get_metrics", "response": {"result": "cpu: 90%"}}}],
     }
+    assert result_messages[3] == {"role": "model", "parts": [{"text": "CPUは90%です"}]}
     assert text == "CPUは90%です"
     on_pending_action.assert_not_called()
 
@@ -191,10 +209,15 @@ async def test_tool_error_is_surfaced_as_error_response_not_result(mock_client, 
     mock_session.call_tool.return_value = make_tool_result("timeout", is_error=True)
     messages = [{"role": "user", "parts": [{"text": "状況を教えて"}]}]
 
-    result_messages, _ = await engine._agentic_loop(mock_client, mock_session, [], messages, Mock())
+    result_messages, text = await engine._agentic_loop(mock_client, mock_session, [], messages, Mock())
 
+    assert mock_client.aio.models.generate_content.await_count == 2
     fn_response = result_messages[2]["parts"][0]["function_response"]
     assert fn_response["response"] == {"error": "timeout"}
+    # ツールエラーを受け取った上でのGeminiの返答であることを確認する
+    # ([1]のfunction_call要求自体は前のテストと同じ形なのでここでは見ない)。
+    assert result_messages[3] == {"role": "model", "parts": [{"text": "取得に失敗しました"}]}
+    assert text == "取得に失敗しました"
 
 
 @pytest.mark.asyncio
