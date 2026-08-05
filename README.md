@@ -151,6 +151,16 @@ npm install
 CHAT_API_URL=http://localhost:8003 npm run dev
 ```
 
+### テストを実行する場合
+
+```bash
+pip install -r requirements-light.txt -r requirements-dev.txt
+pytest tests/ -v
+```
+
+`chat/engine.py`(エージェントループとHuman-in-the-loopの確認処理)を対象にしています。
+対象範囲の考え方は[ADR-0012](docs/adr/0012-pytest-for-chat-engine.md)を参照してください。
+
 ## 使い方の例
 
 チャット欄に日本語で指示を入力するだけです。実プロダクトでは業務画面から呼び出すトグルボタンの先にこのチャットパネルがある想定で、本ポートフォリオではそのエージェント部分を切り出して画面全体に表示しています。
@@ -198,4 +208,4 @@ pull・再起動)は現状手動**で、`docker-compose.prod.yml`(ECR上のイ�
 ## 補足
 
 - 状態はすべてインメモリで、サービス再起動時にリセットされます。
-- テストスイートやリンターは現状導入していません。
+- テストは`chat/engine.py`のみpytestで一部導入しています([ADR-0012](docs/adr/0012-pytest-for-chat-engine.md))。それ以外・リンターは現状導入していません。
