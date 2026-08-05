@@ -1,5 +1,6 @@
 .git
 frontend/
+infra/
 __pycache__
 *.pyc
 chroma_db
