@@ -115,21 +115,52 @@ installs only its own split requirements file (`requirements-light.txt` or
     `tests/conftest.py` (see [ADR-0012](docs/adr/0012-pytest-for-chat-engine.md)).
   - `chat/engine.py` is intentionally UI-framework-agnostic: it takes a `messages` list
     (the raw **Gemini content format**, `{"role": "user"|"model", "parts": [...]}`) and
-    returns an updated one — no server-side session state. `chat/api.py` is a thin FastAPI
-    wrapper around it: `POST /chat` calls `run_conversation_async`, `POST /chat/confirm`
-    calls `resume_after_confirmation_async`. Per-tool Japanese labels/warnings
-    (`_TOOL_LABELS`, `_TOOL_WARNINGS`) and the confirmation card's description text live
-    here too, resolved into the `pending_action` response (`label`/`warning`/
-    `description`) so the frontend doesn't need its own copy of tool metadata.
-    `is_display_message()`-equivalent filtering (only parts with a `"text"` key are
-    user-visible) is ported to the frontend as `frontend/lib/isDisplayMessage.ts`.
+    returns an updated one — no server-side session state. It also takes an optional
+    `on_tool_call` callback, invoked right before/after every MCP tool call
+    (`_call_mcp_tool`) with a `{"phase": "start"|"end", "tool_name", "tool_input", ...}`
+    dict — this is what lets the frontend show tool calls in real time (see below).
+    `chat/api.py` is a thin FastAPI wrapper around it: `POST /chat` calls
+    `run_conversation_async`, `POST /chat/confirm` calls
+    `resume_after_confirmation_async`. Both **stream their response as Server-Sent
+    Events** (`tool_call`/`final`/`error`) rather than a single JSON body, so the
+    frontend can render tool calls as they happen instead of waiting for the whole
+    agentic loop to finish (see [ADR-0014](docs/adr/0014-streaming-tool-visibility-and-audit-log.md)
+    for why SSE over polling/WebSocket, and the resulting error-handling trade-off).
+    Per-tool Japanese labels/warnings (`_TOOL_LABELS`, `_TOOL_WARNINGS`) and the
+    confirmation card's description text live here too, resolved into both the
+    `pending_action` response (`label`/`warning`/`description`) and the `tool_call`
+    stream events (`label`), so the frontend doesn't need its own copy of tool
+    metadata. `is_display_message()`-equivalent filtering (only parts with a `"text"`
+    key are user-visible) is ported to the frontend as
+    `frontend/lib/isDisplayMessage.ts`.
+  - `chat/audit.py` is an in-memory, append-only log of **executed** `MUTATING_TOOLS`
+    calls only (read-only tool calls and cancelled confirmations are never recorded) —
+    `resume_after_confirmation_async` writes to it when `confirmed=True`, right after
+    the tool call actually runs. `GET /audit-log` (in `chat/api.py`) exposes it. Resets
+    on `chat_api` restart, same as `mock_services/state.py`; no actor/user field, per
+    [ADR-0013](docs/adr/0013-no-app-level-auth.md). See
+    [ADR-0014](docs/adr/0014-streaming-tool-visibility-and-audit-log.md) for why this
+    lives here and not in `mock_services` (the `reason` argument never reaches
+    `mock_services` — see `mcp_server/tools/operations.py`).
+  - Both `chat/engine.py`'s human-in-the-loop gate and `chat/audit.py`'s recording are
+    covered by `tests/test_chat_engine.py`, with the Gemini client and MCP session
+    faked in `tests/conftest.py` (see [ADR-0012](docs/adr/0012-pytest-for-chat-engine.md)).
+    `chat/api.py`'s SSE wiring itself has no automated tests, per that same ADR's
+    scoping.
 - **`frontend/`** (port 8000 externally, Next.js/TypeScript) — the UI. `app/page.tsx` is a
-  client component holding `messages`/`pendingAction`/`loading`/`error` in React state (no
-  server-side session — the client holds the full history and sends it whole on every
-  request, see [ADR-0009](docs/adr/0009-stateless-chat-api.md)). `app/api/chat/route.ts`
-  and `app/api/chat/confirm/route.ts` are Route Handlers that proxy to `chat_api` over the
-  internal Docker network (`CHAT_API_URL`); the browser never talks to `chat_api` directly,
-  so no CORS setup is needed.
+  client component holding `messages`/`pendingAction`/`activeTools`/`loading`/`error` in
+  React state (no server-side session — the client holds the full history and sends it
+  whole on every request, see [ADR-0009](docs/adr/0009-stateless-chat-api.md)).
+  `app/api/chat/route.ts` and `app/api/chat/confirm/route.ts` are Route Handlers that
+  proxy to `chat_api` over the internal Docker network (`CHAT_API_URL`); the browser
+  never talks to `chat_api` directly, so no CORS setup is needed. Since `chat_api` now
+  streams (see above), these handlers pass the response body straight through
+  (`new NextResponse(resp.body, ...)`) instead of reading it as JSON; `page.tsx` reads
+  it back with `frontend/lib/readEventStream.ts`, an async generator that parses
+  `text/event-stream` frames. `app/audit/page.tsx` renders `chat/audit.py`'s log — it's
+  a Server Component that fetches `${CHAT_API_URL}/audit-log` directly at render time
+  (`export const dynamic = "force-dynamic"` to avoid a stale cached snapshot), so unlike
+  `page.tsx` it needs no Route Handler proxy (no client-side interactivity to justify one).
 - **`runbooks/`** — markdown runbooks (high CPU, high memory, latency spike, service
   restart) that get chunked/embedded by `scripts/index_runbooks.py` into `chroma_db/`.
   `docker-compose.yml`'s `mcp_server` command runs this script on every container
@@ -187,7 +218,9 @@ installs only its own split requirements file (`requirements-light.txt` or
 
 A new ops action needs three pieces kept in sync: the mock endpoint in
 `mock_services/app.py` + `state.py`, the MCP tool wrapper in `mcp_server/tools/` +
-registration in `mcp_server/server.py`, and — if it's mutating — an entry in
-`MUTATING_TOOLS` plus a label/warning in `chat/api.py`'s `_TOOL_LABELS`/`_TOOL_WARNINGS`
-so the confirmation card renders correctly (the frontend renders whatever `label`/
-`warning`/`description` the API returns — it has no tool-name mapping of its own).
+registration in `mcp_server/server.py`, and an entry in `chat/api.py`'s `_TOOL_LABELS`
+(covers every tool, not just mutating ones — it's also what labels the tool in the
+real-time `tool_call` stream events, see ADR-0014) — and if it's mutating, also an
+entry in `MUTATING_TOOLS` plus a warning in `_TOOL_WARNINGS` so the confirmation card
+renders correctly (the frontend renders whatever `label`/`warning`/`description` the
+API returns — it has no tool-name mapping of its own).

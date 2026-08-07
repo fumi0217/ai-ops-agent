@@ -21,6 +21,7 @@
 | [0011](0011-github-actions-oidc-cicd.md) | GitHub ActionsのCI/CDにOIDC federationを採用 |
 | [0012](0012-pytest-for-chat-engine.md) | chat/engine.pyにpytestを導入する |
 | [0013](0013-no-app-level-auth.md) | アプリケーション層の認証・認可は導入しない |
+| [0014](0014-streaming-tool-visibility-and-audit-log.md) | MCPツール呼び出しのリアルタイム可視化と破壊的操作の監査ログ |
 
 ## フォーマット
 

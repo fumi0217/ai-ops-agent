@@ -12,6 +12,17 @@ import mcp.types as mcp_types
 import pytest
 from google.genai import types as genai_types
 
+from chat import audit
+
+
+@pytest.fixture(autouse=True)
+def _reset_audit_log():
+    """chat.audit is a module-level in-memory store — clear it before every
+    test so entries don't leak across test cases."""
+    audit.clear()
+    yield
+    audit.clear()
+
 
 def make_genai_response(texts: list[str] | None = None, calls: list[tuple[str, dict]] | None = None):
     """Build a fake object shaped like the bits of GenerateContentResponse

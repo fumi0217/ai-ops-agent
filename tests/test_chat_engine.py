@@ -13,7 +13,7 @@ file — the genai client and MCP ClientSession are faked (see conftest.py)
 so these tests run offline and deterministically.
 """
 
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, call
 
 import httpx
 import mcp.types as mcp_types
@@ -21,7 +21,7 @@ import pytest
 from google.genai import errors as genai_errors
 from google.genai import types as genai_types
 
-from chat import engine
+from chat import audit, engine
 from tests.conftest import AsyncCM, make_genai_response, make_tool_result
 
 # ---------------------------------------------------------------------------
@@ -141,6 +141,49 @@ def test_is_display_message_hides_function_response_only_turn():
     msg = {"role": "user", "parts": [{"function_response": {"name": "get_metrics", "response": {}}}]}
     show, _, _ = engine.is_display_message(msg)
     assert show is False
+
+
+# ---------------------------------------------------------------------------
+# _call_mcp_tool — on_tool_call start/end events (real-time visibility, ADR-0014)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_call_mcp_tool_invokes_on_tool_call_for_start_and_end(mock_session):
+    mock_session.call_tool.return_value = make_tool_result("cpu: 90%")
+    on_tool_call = Mock()
+
+    text, is_error = await engine._call_mcp_tool(
+        mock_session, "get_metrics", {"service_name": "payment-service"}, on_tool_call
+    )
+
+    assert text == "cpu: 90%"
+    assert is_error is False
+    assert on_tool_call.call_args_list == [
+        call({
+            "phase": "start",
+            "tool_name": "get_metrics",
+            "tool_input": {"service_name": "payment-service"},
+        }),
+        call({
+            "phase": "end",
+            "tool_name": "get_metrics",
+            "tool_input": {"service_name": "payment-service"},
+            "is_error": False,
+        }),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_call_mcp_tool_without_on_tool_call_still_works(mock_session):
+    """on_tool_call is optional — existing call sites that don't pass it must
+    keep working (e.g. _agentic_loop's non-mutating-tool path predates it)."""
+    mock_session.call_tool.return_value = make_tool_result("cpu: 90%")
+
+    text, is_error = await engine._call_mcp_tool(mock_session, "get_metrics", {"service_name": "x"})
+
+    assert text == "cpu: 90%"
+    assert is_error is False
 
 
 # ---------------------------------------------------------------------------
@@ -381,3 +424,55 @@ async def test_resume_after_confirmation_denied_skips_the_tool_call(monkeypatch)
     fn_response = result_messages[1]["parts"][0]["function_response"]
     assert fn_response["name"] == "restart_service"
     assert "キャンセル" in fn_response["response"]["result"]
+
+
+# ---------------------------------------------------------------------------
+# chat/audit.py — destructive-op audit log (ADR-0014)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_resume_after_confirmation_confirmed_records_audit_entry(monkeypatch):
+    session = AsyncMock()
+    session.list_tools.return_value = Mock(tools=[])
+    session.call_tool.return_value = make_tool_result("再起動しました")
+    _wire_fake_mcp(monkeypatch, session, make_genai_response(texts=["再起動が完了しました"]))
+
+    pending_action = {
+        "tool_name": "restart_service",
+        "tool_input": {"service_name": "payment-service", "reason": "CPU高騰のため"},
+        "sibling_responses": [],
+    }
+    messages = [{"role": "user", "parts": [{"text": "再起動して"}]}]
+
+    await engine.resume_after_confirmation_async(
+        messages, pending_action, confirmed=True, on_pending_action=Mock()
+    )
+
+    entries = audit.get_all()
+    assert len(entries) == 1
+    assert entries[0]["tool_name"] == "restart_service"
+    assert entries[0]["tool_input"] == {"service_name": "payment-service", "reason": "CPU高騰のため"}
+    assert entries[0]["is_error"] is False
+    assert entries[0]["result"] == "再起動しました"
+    assert "timestamp" in entries[0]
+
+
+@pytest.mark.asyncio
+async def test_resume_after_confirmation_denied_records_no_audit_entry(monkeypatch):
+    session = AsyncMock()
+    session.list_tools.return_value = Mock(tools=[])
+    _wire_fake_mcp(monkeypatch, session, make_genai_response(texts=["承知しました、キャンセルします"]))
+
+    pending_action = {
+        "tool_name": "restart_service",
+        "tool_input": {"service_name": "payment-service"},
+        "sibling_responses": [],
+    }
+    messages = [{"role": "user", "parts": [{"text": "再起動して"}]}]
+
+    await engine.resume_after_confirmation_async(
+        messages, pending_action, confirmed=False, on_pending_action=Mock()
+    )
+
+    assert audit.get_all() == []
