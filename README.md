@@ -172,26 +172,9 @@ pytest tests/ -v
 
 再起動・スケール変更が提案されると、対象サービスと理由を示す確認カードが表示され、「実行する」を押すまで操作は行われません。承認して実行された操作は、画面右上の「監査ログ →」リンク（`/audit`）から一覧で確認できます。
 
-**トップ画面**
+**実際の操作の様子**（サービス状況の確認 → 異常調査 → スケール変更の確認ダイアログ → 実行後の結果報告まで）
 
-![トップ画面](docs/images/01-top.png)
-
-**通常の調査応答の例**（「全サービスの状況を確認して」に対する回答）
-
-![サービス状況の確認](docs/images/02-status-check.png)
-
-**異常検知〜対応提案の流れ**（notification-serviceの詳細調査から、スケールアウトの提案まで）
-
-![異常調査と対応提案 (1)](docs/images/03-investigation-and-proposal-1.png)
-![異常調査と対応提案 (2)](docs/images/03-investigation-and-proposal-2.png)
-
-**破壊的操作の確認ダイアログ**（スケール変更の確認カードが表示された状態）
-
-![スケール変更の確認ダイアログ](docs/images/04-confirm-dialog.png)
-
-**確認後、操作が反映されて正常化したことを報告する場面**
-
-![スケールアウト後の結果報告](docs/images/05-result-after-confirm.png)
+![操作の様子](docs/images/use_case.gif)
 
 ## インフラ/デプロイ
 
