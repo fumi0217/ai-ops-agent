@@ -33,7 +33,7 @@ APIレスポンスタイムが急増した場合の調査・対応手順。
 - `notification-service` が遅い → notification-serviceを調査・再起動
 
 ### ケース2: リソース不足
-- スケールアップで処理能力を増強
+- スケールアウトで処理能力を増強
 - 例: `scale_service("notification-service", replicas=3, reason="レイテンシ増加、リソース不足")`
 
 ### ケース3: 永続的な問題（プロセス詰まりなど）
