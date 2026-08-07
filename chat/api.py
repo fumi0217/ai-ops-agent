@@ -106,6 +106,17 @@ def get_audit_log() -> list[dict[str, Any]]:
     return [{**entry, "label": _tool_label(entry["tool_name"])} for entry in audit.get_all()]
 
 
+def _format_sse(data: dict) -> str:
+    """
+    Wire-format one SSE frame: a `data:` field carrying JSON, terminated by
+    the blank line the spec uses to separate frames (see
+    frontend/lib/readEventStream.ts, which splits on this same "\n\n"). Kept
+    as its own function so the SSE protocol detail doesn't sit inline inside
+    event_gen's application logic below.
+    """
+    return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
 async def _stream_events(run) -> StreamingResponse:
     """
     Run `run(on_pending_action, on_tool_call)` in the background, streaming
@@ -145,8 +156,14 @@ async def _stream_events(run) -> StreamingResponse:
             item = await queue.get()
             if item is None:
                 break
-            yield f"data: {json.dumps(item, ensure_ascii=False)}\n\n"
-        await task  # propagate any unexpected task-level exception
+            yield _format_sse(item)
+        # Wait for runner() to actually finish (it already has, in practice,
+        # by the time it puts None on the queue); re-raise here only surfaces
+        # whatever runner()'s own try/except didn't catch (e.g. CancelledError)
+        # so asyncio doesn't just log it as "Task exception was never
+        # retrieved" — nothing downstream does anything with it, the response
+        # has already committed to a 200.
+        await task
 
     return StreamingResponse(event_gen(), media_type="text/event-stream")
 
